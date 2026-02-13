@@ -49,7 +49,7 @@ with st.sidebar:
     )
     st.divider()
     st.caption(
-        "Built with Streamlit • LangChain • Claude • ChromaDB\n\n"
+        "Built with Streamlit • LangChain • Gemini • ChromaDB\n\n"
         "Reducing complexity and operational costs\n"
         "through intelligent automation."
     )
@@ -91,7 +91,7 @@ def main() -> None:
         except Exception as e:
             st.error(
                 f"분석 중 오류가 발생했습니다: {e}\n\n"
-                "ANTHROPIC_API_KEY가 .env 파일에 올바르게 설정되어 있는지 확인하세요."
+                "GOOGLE_API_KEY가 .env 파일에 올바르게 설정되어 있는지 확인하세요."
             )
             return
 

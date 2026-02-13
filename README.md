@@ -59,7 +59,7 @@ AI 기반 SAP 레거시 시스템 진단 및 전환 전략 도우미
 ## 기술 스택
 
 - **Python 3.13** / **Streamlit** – 웹 UI
-- **LangChain** + **Claude (Anthropic)** – LLM 오케스트레이션
+- **LangChain** + **Gemini (Google)** – LLM 오케스트레이션
 - **ChromaDB** + **multilingual-e5-small** – 다국어 RAG 파이프라인
 - **Plotly** – 인터랙티브 차트 (게이지, 레이더, 바 차트)
 - **fpdf2** + **Noto Sans KR** – 한글 PDF 생성
@@ -85,7 +85,7 @@ pip install -e .
 
 ```bash
 cp .env.example .env
-# .env 파일을 편집하여 Anthropic API 키 입력
+# .env 파일을 편집하여 Google Gemini API 키 입력
 ```
 
 ### 3. 앱 실행

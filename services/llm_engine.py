@@ -1,4 +1,4 @@
-"""Claude API 연동 및 LangChain 멀티에이전트 오케스트레이션.
+"""Google Gemini API 연동 및 LangChain 멀티에이전트 오케스트레이션.
 
 Analyst → Architect → Reporter 3단계 LCEL 체인으로
 SAP Clean Core 진단 리포트를 생성합니다.
@@ -9,7 +9,7 @@ from __future__ import annotations
 import os
 
 from dotenv import load_dotenv
-from langchain_anthropic import ChatAnthropic
+from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate
 
@@ -22,16 +22,16 @@ load_dotenv()
 # ────────────────────────────────────────────────────────────────────
 # LLM 초기화
 # ────────────────────────────────────────────────────────────────────
-_MODEL = "claude-sonnet-4-20250514"
+_MODEL = "gemini-2.0-flash"
 
 
-def _get_llm() -> ChatAnthropic:
-    api_key = os.getenv("ANTHROPIC_API_KEY", "")
-    return ChatAnthropic(
+def _get_llm() -> ChatGoogleGenerativeAI:
+    api_key = os.getenv("GOOGLE_API_KEY", "")
+    return ChatGoogleGenerativeAI(
         model=_MODEL,
-        anthropic_api_key=api_key,
+        google_api_key=api_key,
         temperature=0.3,
-        max_tokens=4096,
+        max_output_tokens=4096,
     )
 
 
