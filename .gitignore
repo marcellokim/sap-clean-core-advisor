@@ -1,0 +1,19 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# Virtual environments
+.venv
+
+# Environment variables
+.env
+
+# ChromaDB (벡터 스토어 – 런타임 생성)
+data/chroma_db/
+
+# HuggingFace 모델 캐시
+.cache/
