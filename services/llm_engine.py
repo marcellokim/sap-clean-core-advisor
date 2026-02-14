@@ -31,9 +31,10 @@ logger = logging.getLogger(__name__)
 _MODEL = "gemini-2.0-flash-lite"
 
 # 재시도 설정 (무료 티어 Rate Limit 대응)
-_MAX_RETRIES = 4
-_BASE_DELAY = 15  # 초
-_DELAY_BETWEEN_CHAINS = 5  # 체인 간 대기 시간 (초)
+_MAX_RETRIES = 2
+_BASE_DELAY = 5  # 초
+_DELAY_BETWEEN_CHAINS = 2  # 체인 간 대기 시간 (초)
+_DEFAULT_PIPELINE_MODE = "single"
 
 
 def _get_llm() -> ChatGoogleGenerativeAI:
@@ -42,8 +43,13 @@ def _get_llm() -> ChatGoogleGenerativeAI:
         model=_MODEL,
         google_api_key=api_key,
         temperature=0.3,
-        max_output_tokens=4096,
+        max_output_tokens=2048,
     )
+
+
+def _is_rate_limit_error(err: Exception) -> bool:
+    err_str = str(err).upper()
+    return "429" in err_str or "RESOURCE_EXHAUSTED" in err_str or "TOOMANYREQUESTS" in err_str
 
 
 def _invoke_with_retry(chain: Runnable, inputs: dict[str, Any]) -> str:
@@ -55,8 +61,7 @@ def _invoke_with_retry(chain: Runnable, inputs: dict[str, Any]) -> str:
         try:
             return chain.invoke(inputs)
         except Exception as e:
-            err_str = str(e)
-            if "429" in err_str or "RESOURCE_EXHAUSTED" in err_str:
+            if _is_rate_limit_error(e):
                 if attempt == _MAX_RETRIES:
                     raise
                 delay = _BASE_DELAY * (2 ** attempt)
@@ -166,6 +171,46 @@ CIO와 경영진을 위한 설득력 있는 비즈니스 문서를 작성하라.
 EXECUTIVE SUMMARY와 DETAILED REPORT를 반드시 "---SECTION_SEPARATOR---"로 구분하라.
 """
 
+SINGLE_PASS_SYSTEM = """\
+너는 20년차 SAP Enterprise Architect이며, SAP Clean Core 사전진단 결과를 최종 보고서 형태로 작성한다.
+한국어로 작성하고, 숫자를 우선으로 사용하라.
+
+[고객 정보]
+{customer_info}
+
+[정량 지표]
+- Clean Core 점수: {clean_core_score}/100
+- 항목별 점수: {score_breakdown}
+- 현재 연간 TCO: {current_tco}억원
+- 전환 후 연간 TCO: {projected_tco}억원
+- 3년 누적 절감액: {savings_3yr}억원
+- 리스크 수준: {risk_level}
+- 리스크 요인: {risk_factors}
+- 기술 부채 분포: {tech_debt}
+- 규칙 기반 권고사항: {recommendations}
+
+[SAP 공식 가이드 참조(RAG)]
+{rag_context}
+
+아래 두 섹션을 정확히 생성하라.
+
+## SECTION 1: EXECUTIVE SUMMARY
+- 현재 상태 한 줄 요약
+- 핵심 리스크 2~3개
+- 기대 효과(반드시 수치 포함)
+- 즉시 실행 Action 3개
+
+## SECTION 2: DETAILED REPORT
+- 1. 현황 분석
+- 2. Clean Core 평가
+- 3. 전환 전략 및 단계
+- 4. TCO 분석
+- 5. 리스크 대응
+- 6. 다음 단계
+
+두 섹션을 반드시 "---SECTION_SEPARATOR---"로 구분하라.
+"""
+
 
 # ────────────────────────────────────────────────────────────────────
 # 체인 구성
@@ -192,6 +237,56 @@ def _format_customer_info(inp: CustomerInput) -> str:
     )
 
 
+def _build_fallback_reports(
+    inp: CustomerInput,
+    calc: CalculationResult,
+    recommendations: list[str],
+) -> tuple[str, str]:
+    """LLM 호출이 불가할 때 규칙 기반 리포트를 생성."""
+    top_risks = calc.risk_factors[:3] if calc.risk_factors else ["식별된 주요 리스크 없음"]
+    top_recs = recommendations[:3] if recommendations else ["커스텀 코드 정리 로드맵 수립"]
+    summary = (
+        f"### {inp.company_name} Clean Core 사전진단 요약\n\n"
+        f"- 현재 Clean Core 점수는 **{calc.clean_core_score:.1f}/100**이며, 리스크 수준은 **{calc.risk_level}**입니다.\n"
+        f"- 현재 연간 TCO **{calc.current_annual_tco:.1f}억원** 대비 전환 후 **{calc.projected_tco_after_migration:.1f}억원**으로, "
+        f"3년 누적 **{calc.tco_savings_3yr:.1f}억원** 변화가 예상됩니다.\n\n"
+        "#### 핵심 리스크\n"
+        + "\n".join(f"- {risk}" for risk in top_risks)
+        + "\n\n#### 즉시 실행 Action\n"
+        + "\n".join(f"- {rec}" for rec in top_recs)
+    )
+
+    detailed = (
+        "## 1. 현황 분석\n"
+        f"- ERP: {inp.erp_version}, DB: {inp.db_type}, 사용자: {inp.num_users:,}명, "
+        f"커스텀 프로그램: {inp.num_custom_programs:,}개\n"
+        f"- 커스텀 코드 비중: {inp.custom_code_ratio}%\n\n"
+        "## 2. Clean Core 평가\n"
+        + "\n".join(f"- {k}: {v}" for k, v in calc.score_breakdown.items())
+        + "\n\n## 3. 전환 전략 및 단계\n"
+        "- Phase 1: 고위험 커스텀 모듈 정리 및 대상 분류\n"
+        "- Phase 2: 핵심 모듈 우선 전환(FI/CO/MM 등)\n"
+        "- Phase 3: BTP 기반 확장 전환 및 운영 안정화\n\n"
+        "## 4. TCO 분석\n"
+        f"- 현재 연간 TCO: {calc.current_annual_tco:.1f}억원\n"
+        f"- 전환 후 연간 TCO: {calc.projected_tco_after_migration:.1f}억원\n"
+        f"- 3년 누적 절감/증가: {calc.tco_savings_3yr:.1f}억원\n\n"
+        "## 5. 리스크 관리\n"
+        + "\n".join(f"- {risk}" for risk in calc.risk_factors)
+        + "\n\n## 6. 다음 단계\n"
+        + "\n".join(f"- {rec}" for rec in recommendations[:5])
+    )
+    return summary, detailed
+
+
+def _split_report(report: str) -> tuple[str, str]:
+    """구분자 기반으로 보고서를 분리."""
+    if "---SECTION_SEPARATOR---" in report:
+        parts = report.split("---SECTION_SEPARATOR---", 1)
+        return parts[0].strip(), parts[1].strip()
+    return report[:500] + "...", report
+
+
 def get_advice(customer_input: CustomerInput) -> AdvisorOutput:
     """고객사 정보를 바탕으로 SAP Clean Core 분석 및 조언을 생성.
 
@@ -200,32 +295,12 @@ def get_advice(customer_input: CustomerInput) -> AdvisorOutput:
     3. Architect Chain: RAG 기반 전환 전략 수립
     4. Reporter Chain: Executive Summary + 상세 리포트 생성
     """
-    llm = _get_llm()
-    parser = StrOutputParser()
-
     # ── Step 0: 규칙 기반 계산 ──
     calc = run_calculation(customer_input)
     customer_info = _format_customer_info(customer_input)
 
-    # ── Step 1: Analyst – 현재 문제점 진단 ──
-    analyst_prompt = ChatPromptTemplate.from_messages([
-        ("system", ANALYST_SYSTEM),
-        ("human", "위 정보를 바탕으로 현재 시스템의 핵심 문제점을 진단해 주세요."),
-    ])
-    analyst_chain = analyst_prompt | llm | parser
-    analysis: str = _invoke_with_retry(analyst_chain, {
-        "customer_info": customer_info,
-        "clean_core_score": calc.clean_core_score,
-        "score_breakdown": calc.score_breakdown,
-        "current_tco": calc.current_annual_tco,
-        "tech_debt": calc.tech_debt_breakdown,
-        "risk_level": calc.risk_level,
-        "risk_factors": "\n".join(f"- {r}" for r in calc.risk_factors),
-    })
-
-    time.sleep(_DELAY_BETWEEN_CHAINS)  # Rate Limit 방지
-
-    # ── Step 2: Architect – RAG 기반 전환 전략 ──
+    # ── 권고사항 추출 (규칙 기반 + AI 분석 기반) ──
+    recommendations = _extract_recommendations(calc, customer_input)
     module_names = [m.module_name for m in customer_input.modules]
     rag_context = get_context_for_input(
         erp_version=customer_input.erp_version,
@@ -233,47 +308,89 @@ def get_advice(customer_input: CustomerInput) -> AdvisorOutput:
         pain_points=customer_input.pain_points,
     )
 
-    architect_prompt = ChatPromptTemplate.from_messages([
-        ("system", ARCHITECT_SYSTEM),
-        ("human", "위 진단 결과와 SAP 공식 가이드를 참고하여 전환 전략을 수립해 주세요."),
-    ])
-    architect_chain = architect_prompt | llm | parser
-    architecture: str = _invoke_with_retry(architect_chain, {
-        "analysis": analysis,
-        "rag_context": rag_context,
-        "customer_info": customer_info,
-    })
+    # ── Step 1: LLM 실행 ──
+    llm = _get_llm()
+    parser = StrOutputParser()
+    pipeline_mode = os.getenv("LLM_PIPELINE_MODE", _DEFAULT_PIPELINE_MODE).strip().lower()
 
-    time.sleep(_DELAY_BETWEEN_CHAINS)  # Rate Limit 방지
+    try:
+        if pipeline_mode != "three_chain":
+            single_prompt = ChatPromptTemplate.from_messages([
+                ("system", SINGLE_PASS_SYSTEM),
+                ("human", "위 정보를 종합하여 최종 보고서를 작성해 주세요."),
+            ])
+            single_chain = single_prompt | llm | parser
+            report = _invoke_with_retry(single_chain, {
+                "customer_info": customer_info,
+                "clean_core_score": calc.clean_core_score,
+                "score_breakdown": calc.score_breakdown,
+                "current_tco": calc.current_annual_tco,
+                "projected_tco": calc.projected_tco_after_migration,
+                "savings_3yr": calc.tco_savings_3yr,
+                "risk_level": calc.risk_level,
+                "risk_factors": "\n".join(f"- {r}" for r in calc.risk_factors),
+                "tech_debt": calc.tech_debt_breakdown,
+                "recommendations": "\n".join(f"- {r}" for r in recommendations),
+                "rag_context": rag_context,
+            })
+            executive_summary, detailed_report = _split_report(report)
+        else:
+            analyst_prompt = ChatPromptTemplate.from_messages([
+                ("system", ANALYST_SYSTEM),
+                ("human", "위 정보를 바탕으로 현재 시스템의 핵심 문제점을 진단해 주세요."),
+            ])
+            analyst_chain = analyst_prompt | llm | parser
+            analysis: str = _invoke_with_retry(analyst_chain, {
+                "customer_info": customer_info,
+                "clean_core_score": calc.clean_core_score,
+                "score_breakdown": calc.score_breakdown,
+                "current_tco": calc.current_annual_tco,
+                "tech_debt": calc.tech_debt_breakdown,
+                "risk_level": calc.risk_level,
+                "risk_factors": "\n".join(f"- {r}" for r in calc.risk_factors),
+            })
 
-    # ── Step 3: Reporter – 최종 리포트 생성 ──
-    reporter_prompt = ChatPromptTemplate.from_messages([
-        ("system", REPORTER_SYSTEM),
-        ("human", "위 모든 분석을 종합하여 Executive Summary와 상세 리포트를 작성해 주세요."),
-    ])
-    reporter_chain = reporter_prompt | llm | parser
-    report: str = _invoke_with_retry(reporter_chain, {
-        "customer_info": customer_info,
-        "analysis": analysis,
-        "architecture": architecture,
-        "clean_core_score": calc.clean_core_score,
-        "current_tco": calc.current_annual_tco,
-        "projected_tco": calc.projected_tco_after_migration,
-        "savings_3yr": calc.tco_savings_3yr,
-    })
+            time.sleep(_DELAY_BETWEEN_CHAINS)
 
-    # ── 리포트 파싱 ──
-    if "---SECTION_SEPARATOR---" in report:
-        parts = report.split("---SECTION_SEPARATOR---", 1)
-        executive_summary = parts[0].strip()
-        detailed_report = parts[1].strip()
-    else:
-        # 구분자가 없는 경우 전체를 상세 리포트로
-        executive_summary = report[:500] + "..."
-        detailed_report = report
+            architect_prompt = ChatPromptTemplate.from_messages([
+                ("system", ARCHITECT_SYSTEM),
+                ("human", "위 진단 결과와 SAP 공식 가이드를 참고하여 전환 전략을 수립해 주세요."),
+            ])
+            architect_chain = architect_prompt | llm | parser
+            architecture: str = _invoke_with_retry(architect_chain, {
+                "analysis": analysis,
+                "rag_context": rag_context,
+                "customer_info": customer_info,
+            })
 
-    # ── 권고사항 추출 (규칙 기반 + AI 분석 기반) ──
-    recommendations = _extract_recommendations(calc, customer_input)
+            time.sleep(_DELAY_BETWEEN_CHAINS)
+
+            reporter_prompt = ChatPromptTemplate.from_messages([
+                ("system", REPORTER_SYSTEM),
+                ("human", "위 모든 분석을 종합하여 Executive Summary와 상세 리포트를 작성해 주세요."),
+            ])
+            reporter_chain = reporter_prompt | llm | parser
+            report: str = _invoke_with_retry(reporter_chain, {
+                "customer_info": customer_info,
+                "analysis": analysis,
+                "architecture": architecture,
+                "clean_core_score": calc.clean_core_score,
+                "current_tco": calc.current_annual_tco,
+                "projected_tco": calc.projected_tco_after_migration,
+                "savings_3yr": calc.tco_savings_3yr,
+            })
+            executive_summary, detailed_report = _split_report(report)
+    except Exception as e:
+        if _is_rate_limit_error(e):
+            logger.warning(
+                "Gemini rate limit persists. Falling back to deterministic report: %s",
+                e,
+            )
+            executive_summary, detailed_report = _build_fallback_reports(
+                customer_input, calc, recommendations
+            )
+        else:
+            raise
 
     return AdvisorOutput(
         clean_core_score=calc.clean_core_score,
