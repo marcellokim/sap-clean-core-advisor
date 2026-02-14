@@ -165,7 +165,7 @@ def _render_tco_chart(
         mode="lines+markers+text",
         line={"color": SAP_GREEN, "width": 3, "dash": "dot"},
         marker={"size": 10},
-        text=[f"+{v:.1f}억" for v in cumulative_savings],
+        text=[f"{v:+.1f}억" for v in cumulative_savings],
         textposition="top center",
         yaxis="y2",
     ))
@@ -204,15 +204,16 @@ def render_dashboard(
     # ── 핵심 KPI 카드 ──
     kpi1, kpi2, kpi3, kpi4 = st.columns(4)
     with kpi1:
-        risk_color = RISK_COLORS.get(output.risk_level, SAP_ORANGE)
         st.metric("Clean Core Score", f"{output.clean_core_score:.1f} / 100")
     with kpi2:
         st.metric("현재 연간 TCO", f"{output.current_annual_tco:.1f}억원")
     with kpi3:
+        delta_tco = output.projected_tco_after_migration - output.current_annual_tco
         st.metric(
             "전환 후 TCO",
             f"{output.projected_tco_after_migration:.1f}억원",
-            delta=f"-{output.current_annual_tco - output.projected_tco_after_migration:.1f}억원",
+            delta=f"{delta_tco:+.1f}억원",
+            delta_color="inverse",
         )
     with kpi4:
         st.metric("3년 누적 절감", f"{output.tco_savings_3yr:.1f}억원")

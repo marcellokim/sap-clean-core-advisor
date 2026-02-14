@@ -6,12 +6,16 @@ SAP Clean Core 진단 리포트를 생성합니다.
 
 from __future__ import annotations
 
+import logging
 import os
+import time
+from typing import Any
 
 from dotenv import load_dotenv
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate
+from langchain_core.runnables import Runnable
 
 from models.schemas import AdvisorOutput, CustomerInput
 from services.cost_calculator import CalculationResult, run_calculation
@@ -19,10 +23,17 @@ from services.rag_pipeline import get_context_for_input
 
 load_dotenv()
 
+logger = logging.getLogger(__name__)
+
 # ────────────────────────────────────────────────────────────────────
 # LLM 초기화
 # ────────────────────────────────────────────────────────────────────
-_MODEL = "gemini-2.0-flash"
+_MODEL = "gemini-2.0-flash-lite"
+
+# 재시도 설정 (무료 티어 Rate Limit 대응)
+_MAX_RETRIES = 4
+_BASE_DELAY = 15  # 초
+_DELAY_BETWEEN_CHAINS = 5  # 체인 간 대기 시간 (초)
 
 
 def _get_llm() -> ChatGoogleGenerativeAI:
@@ -33,6 +44,30 @@ def _get_llm() -> ChatGoogleGenerativeAI:
         temperature=0.3,
         max_output_tokens=4096,
     )
+
+
+def _invoke_with_retry(chain: Runnable, inputs: dict[str, Any]) -> str:
+    """Rate Limit(429) 에러 시 자동 재시도하는 체인 호출 래퍼.
+
+    지수 백오프(exponential backoff)로 최대 _MAX_RETRIES회 재시도합니다.
+    """
+    for attempt in range(_MAX_RETRIES + 1):
+        try:
+            return chain.invoke(inputs)
+        except Exception as e:
+            err_str = str(e)
+            if "429" in err_str or "RESOURCE_EXHAUSTED" in err_str:
+                if attempt == _MAX_RETRIES:
+                    raise
+                delay = _BASE_DELAY * (2 ** attempt)
+                logger.warning(
+                    "Rate limit hit (attempt %d/%d). Retrying in %ds...",
+                    attempt + 1, _MAX_RETRIES, delay,
+                )
+                time.sleep(delay)
+            else:
+                raise
+    return ""  # unreachable
 
 
 # ────────────────────────────────────────────────────────────────────
@@ -178,7 +213,7 @@ def get_advice(customer_input: CustomerInput) -> AdvisorOutput:
         ("human", "위 정보를 바탕으로 현재 시스템의 핵심 문제점을 진단해 주세요."),
     ])
     analyst_chain = analyst_prompt | llm | parser
-    analysis: str = analyst_chain.invoke({
+    analysis: str = _invoke_with_retry(analyst_chain, {
         "customer_info": customer_info,
         "clean_core_score": calc.clean_core_score,
         "score_breakdown": calc.score_breakdown,
@@ -187,6 +222,8 @@ def get_advice(customer_input: CustomerInput) -> AdvisorOutput:
         "risk_level": calc.risk_level,
         "risk_factors": "\n".join(f"- {r}" for r in calc.risk_factors),
     })
+
+    time.sleep(_DELAY_BETWEEN_CHAINS)  # Rate Limit 방지
 
     # ── Step 2: Architect – RAG 기반 전환 전략 ──
     module_names = [m.module_name for m in customer_input.modules]
@@ -201,11 +238,13 @@ def get_advice(customer_input: CustomerInput) -> AdvisorOutput:
         ("human", "위 진단 결과와 SAP 공식 가이드를 참고하여 전환 전략을 수립해 주세요."),
     ])
     architect_chain = architect_prompt | llm | parser
-    architecture: str = architect_chain.invoke({
+    architecture: str = _invoke_with_retry(architect_chain, {
         "analysis": analysis,
         "rag_context": rag_context,
         "customer_info": customer_info,
     })
+
+    time.sleep(_DELAY_BETWEEN_CHAINS)  # Rate Limit 방지
 
     # ── Step 3: Reporter – 최종 리포트 생성 ──
     reporter_prompt = ChatPromptTemplate.from_messages([
@@ -213,7 +252,7 @@ def get_advice(customer_input: CustomerInput) -> AdvisorOutput:
         ("human", "위 모든 분석을 종합하여 Executive Summary와 상세 리포트를 작성해 주세요."),
     ])
     reporter_chain = reporter_prompt | llm | parser
-    report: str = reporter_chain.invoke({
+    report: str = _invoke_with_retry(reporter_chain, {
         "customer_info": customer_info,
         "analysis": analysis,
         "architecture": architecture,
@@ -294,6 +333,20 @@ def _extract_recommendations(
             f"Clean Core 전환 시 3년간 약 {calc.tco_savings_3yr}억원 절감이 예상됩니다. "
             "경영진 보고에 이 수치를 활용하세요."
         )
+
+    # 예산 기반
+    if inp.annual_it_budget_krw > 0:
+        budget_ratio = calc.current_annual_tco / inp.annual_it_budget_krw
+        if budget_ratio >= 1.0:
+            recs.append(
+                "현재 운영 TCO가 연간 IT 예산을 초과합니다. "
+                "고비용 모듈 우선 정리와 단계적 전환으로 비용 급증 리스크를 제어하세요."
+            )
+        elif budget_ratio >= 0.7:
+            recs.append(
+                "현재 운영 TCO가 연간 IT 예산의 70% 이상입니다. "
+                "비핵심 커스텀 정리와 인프라 최적화 과제를 우선 실행하세요."
+            )
 
     # BTP 권고
     high_custom_modules = [

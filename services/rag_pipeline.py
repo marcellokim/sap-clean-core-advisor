@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import hashlib
 import os
+from functools import lru_cache
 from pathlib import Path
 
 from langchain_chroma import Chroma
@@ -27,7 +28,10 @@ CHUNK_OVERLAP = 200
 COLLECTION_NAME = "sap_knowledge_base"
 TOP_K = 5
 
+_CACHED_VECTOR_STORE: Chroma | None = None
+_CACHED_DOCS_HASH: str | None = None
 
+@lru_cache(maxsize=1)
 def _get_embedding_function() -> HuggingFaceEmbeddings:
     """다국어 E5 임베딩 함수를 반환."""
     return HuggingFaceEmbeddings(
@@ -78,17 +82,24 @@ def build_vector_store(force: bool = False) -> Chroma:
     Returns:
         Chroma 벡터 스토어 인스턴스.
     """
-    embeddings = _get_embedding_function()
+    global _CACHED_DOCS_HASH, _CACHED_VECTOR_STORE
+
     raw_docs = _load_markdown_docs()
     docs_hash = _compute_docs_hash(raw_docs)
+    embeddings = _get_embedding_function()
+
+    if not force and _CACHED_VECTOR_STORE is not None and _CACHED_DOCS_HASH == docs_hash:
+        return _CACHED_VECTOR_STORE
 
     if not force and not _needs_rebuild(docs_hash):
         # 기존 DB 로드
-        return Chroma(
+        _CACHED_VECTOR_STORE = Chroma(
             persist_directory=str(CHROMA_DIR),
             embedding_function=embeddings,
             collection_name=COLLECTION_NAME,
         )
+        _CACHED_DOCS_HASH = docs_hash
+        return _CACHED_VECTOR_STORE
 
     # 청크 분할
     splitter = RecursiveCharacterTextSplitter(
@@ -114,7 +125,16 @@ def build_vector_store(force: bool = False) -> Chroma:
     # 해시 저장
     (CHROMA_DIR / ".docs_hash").write_text(docs_hash)
 
+    _CACHED_VECTOR_STORE = vector_store
+    _CACHED_DOCS_HASH = docs_hash
+
     return vector_store
+
+
+def _search_with_store(vector_store: Chroma, query: str, top_k: int) -> list[Document]:
+    """이미 로드된 벡터 스토어에서 쿼리를 검색."""
+    prefixed_query = f"query: {query}"
+    return vector_store.similarity_search(prefixed_query, k=top_k)
 
 
 def search(query: str, top_k: int = TOP_K) -> list[Document]:
@@ -130,10 +150,7 @@ def search(query: str, top_k: int = TOP_K) -> list[Document]:
         관련성 높은 Document 리스트.
     """
     vector_store = build_vector_store()
-    # E5 모델은 query: prefix 필요
-    prefixed_query = f"query: {query}"
-    results = vector_store.similarity_search(prefixed_query, k=top_k)
-    return results
+    return _search_with_store(vector_store, query, top_k)
 
 
 def get_context_for_input(
@@ -152,11 +169,12 @@ def get_context_for_input(
         "RISE with SAP TCO 절감 효과",
     ]
 
+    vector_store = build_vector_store()
     all_chunks: list[Document] = []
     seen_contents: set[str] = set()
 
     for q in queries:
-        results = search(q, top_k=3)
+        results = _search_with_store(vector_store, q, top_k=3)
         for doc in results:
             # 중복 제거
             content_key = doc.page_content[:100]

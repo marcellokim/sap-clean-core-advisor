@@ -168,7 +168,11 @@ def calculate_tco(inp: CustomerInput) -> tuple[float, float, float]:
     return current_annual_tco, projected_annual_tco, savings_3yr
 
 
-def assess_risks(inp: CustomerInput, clean_core_score: float) -> tuple[str, list[str]]:
+def assess_risks(
+    inp: CustomerInput,
+    clean_core_score: float,
+    current_annual_tco: float,
+) -> tuple[str, list[str]]:
     """리스크 수준과 리스크 요인 목록을 반환."""
     risk_factors: list[str] = []
 
@@ -219,6 +223,20 @@ def assess_risks(inp: CustomerInput, clean_core_score: float) -> tuple[str, list
             f"DB 사이즈 {inp.db_size_gb:,.0f}GB – 데이터 아카이빙 및 정리 선행 필요"
         )
 
+    # 예산 압박 리스크
+    if inp.annual_it_budget_krw > 0:
+        budget_ratio = current_annual_tco / inp.annual_it_budget_krw
+        if budget_ratio >= 1.0:
+            risk_factors.append(
+                "현재 추정 TCO가 연간 IT 예산을 초과합니다 – "
+                "단계별 전환 및 비용 최적화 우선 검토 필요"
+            )
+        elif budget_ratio >= 0.7:
+            risk_factors.append(
+                "현재 추정 TCO가 연간 IT 예산의 70% 이상을 점유합니다 – "
+                "운영비 구조 개선 필요"
+            )
+
     # 리스크 레벨 판정
     if clean_core_score < 30 or len(risk_factors) >= 4:
         risk_level = "High"
@@ -234,7 +252,7 @@ def run_calculation(inp: CustomerInput) -> CalculationResult:
     """모든 규칙 기반 계산을 통합 실행하고 결과를 반환."""
     clean_core_score, score_breakdown = calculate_clean_core_score(inp)
     current_tco, projected_tco, savings_3yr = calculate_tco(inp)
-    risk_level, risk_factors = assess_risks(inp, clean_core_score)
+    risk_level, risk_factors = assess_risks(inp, clean_core_score, current_tco)
     tech_debt = calculate_tech_debt_breakdown(inp)
 
     return CalculationResult(

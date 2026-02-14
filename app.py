@@ -3,6 +3,7 @@
 입력 → 규칙 기반 계산 → AI 분석(RAG) → 시각화 → PDF 다운로드 전체 플로우를 통합합니다.
 """
 
+import os
 import streamlit as st
 
 from models.schemas import CustomerInput
@@ -89,17 +90,29 @@ def main() -> None:
         try:
             output = get_advice(customer_input)
         except Exception as e:
-            st.error(
-                f"분석 중 오류가 발생했습니다: {e}\n\n"
-                "GOOGLE_API_KEY가 .env 파일에 올바르게 설정되어 있는지 확인하세요."
-            )
+            err_msg = str(e).strip()
+            if not os.getenv("GOOGLE_API_KEY", "").strip():
+                st.error(
+                    "분석 중 오류가 발생했습니다.\n\n"
+                    "GOOGLE_API_KEY가 .env 파일에 설정되어 있는지 확인하세요."
+                )
+            else:
+                st.error(
+                    "분석 중 오류가 발생했습니다. 네트워크 상태 또는 API 한도를 확인하세요."
+                )
+                if err_msg:
+                    st.caption(f"상세 오류: {err_msg}")
             return
 
     # ── PDF 생성 ──
     try:
         pdf_bytes = generate_pdf(output, customer_input)
-    except Exception:
+    except Exception as e:
         pdf_bytes = None
+        err_msg = str(e).strip()
+        st.warning("PDF 생성에 실패하여 화면 결과만 제공합니다.")
+        if err_msg:
+            st.caption(f"PDF 오류 상세: {err_msg}")
 
     # ── 결과 저장 (session_state) ──
     st.session_state["last_output"] = output
