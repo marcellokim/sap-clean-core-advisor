@@ -233,12 +233,12 @@ def render_dashboard(
     with chart_col1:
         st.plotly_chart(
             _render_score_gauge(output.clean_core_score),
-            use_container_width=True,
+            width="stretch",
         )
     with chart_col2:
         st.plotly_chart(
             _render_score_breakdown(output.score_breakdown),
-            use_container_width=True,
+            width="stretch",
         )
 
     # ── 차트 Row 2: 기술 부채 + TCO ──
@@ -246,7 +246,7 @@ def render_dashboard(
     with chart_col3:
         st.plotly_chart(
             _render_tech_debt_chart(output.tech_debt_breakdown),
-            use_container_width=True,
+            width="stretch",
         )
     with chart_col4:
         st.plotly_chart(
@@ -255,7 +255,7 @@ def render_dashboard(
                 output.projected_tco_after_migration,
                 output.tco_savings_3yr,
             ),
-            use_container_width=True,
+            width="stretch",
         )
 
     # ── 리스크 요인 ──
@@ -294,5 +294,5 @@ def render_dashboard(
             data=pdf_bytes,
             file_name=f"EA_Cookbook_{safe_name}.pdf",
             mime="application/pdf",
-            use_container_width=True,
+            width="stretch",
         )

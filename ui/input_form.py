@@ -147,7 +147,7 @@ def render_input_form() -> CustomerInput | None:
         submitted = st.form_submit_button(
             "🔍 Clean Core 분석 시작",
             type="primary",
-            use_container_width=True,
+            width="stretch",
         )
 
         if submitted:

@@ -52,10 +52,25 @@ class EACookbookPDF(FPDF):
             return  # 표지에는 헤더 없음
         self.set_font("NotoSansKR", "", 8)
         self.set_text_color(*DARK_GRAY)
-        self.cell(0, 8, f"RISE with SAP: Clean Core Assessment – {self.company_name}", align="L")
-        self.cell(0, 8, f"Page {self.page_no()}", align="R", new_x="LMARGIN", new_y="NEXT")
+        page_width = self.w - self.l_margin - self.r_margin
+        self.cell(
+            page_width * 0.8,
+            8,
+            f"RISE with SAP: Clean Core Assessment – {self.company_name}",
+            align="L",
+            new_x="RIGHT",
+            new_y="TOP",
+        )
+        self.cell(
+            page_width * 0.2,
+            8,
+            f"Page {self.page_no()}",
+            align="R",
+            new_x="LMARGIN",
+            new_y="NEXT",
+        )
         self.set_draw_color(*SAP_BLUE)
-        self.line(10, self.get_y(), 200, self.get_y())
+        self.line(self.l_margin, self.get_y(), self.w - self.r_margin, self.get_y())
         self.ln(4)
 
     def footer(self) -> None:
@@ -149,8 +164,11 @@ class EACookbookPDF(FPDF):
         for line in text.split("\n"):
             stripped = line.strip()
             if not stripped:
+                self.set_x(self.l_margin)
                 self.ln(3)
                 continue
+
+            self.set_x(self.l_margin)
 
             # Markdown 헤더 처리
             if stripped.startswith("### "):
@@ -164,18 +182,19 @@ class EACookbookPDF(FPDF):
                 self.set_text_color(*DARK_GRAY)
                 # 볼드 마크다운 간이 제거
                 clean = re.sub(r"\*\*(.*?)\*\*", r"\1", stripped[2:])
-                self.cell(8)
-                self.multi_cell(0, 6, f"  •  {clean}")
+                self.set_x(self.l_margin + 4)
+                self.multi_cell(0, 6, f"• {clean}")
             elif stripped.startswith(tuple(f"{i}." for i in range(1, 20))):
                 self.set_font("NotoSansKR", "", 10)
                 self.set_text_color(*DARK_GRAY)
                 clean = re.sub(r"\*\*(.*?)\*\*", r"\1", stripped)
-                self.cell(5)
-                self.multi_cell(0, 6, f"  {clean}")
+                self.set_x(self.l_margin + 2)
+                self.multi_cell(0, 6, clean)
             else:
                 self.set_font("NotoSansKR", "", 10)
                 self.set_text_color(*DARK_GRAY)
                 clean = re.sub(r"\*\*(.*?)\*\*", r"\1", stripped)
+                self.set_x(self.l_margin)
                 self.multi_cell(0, 6, clean)
 
     def _add_kpi_box(self, output: AdvisorOutput) -> None:
@@ -228,8 +247,8 @@ class EACookbookPDF(FPDF):
         self.set_font("NotoSansKR", "", 10)
         self.set_text_color(*DARK_GRAY)
         for rf in output.risk_factors:
-            self.cell(5)
-            self.multi_cell(0, 6, f"⚠  {rf}")
+            self.set_x(self.l_margin + 2)
+            self.multi_cell(0, 6, f"⚠ {rf}")
             self.ln(2)
 
     def _add_recommendations(self, output: AdvisorOutput) -> None:
@@ -238,7 +257,7 @@ class EACookbookPDF(FPDF):
         self.set_font("NotoSansKR", "", 10)
         self.set_text_color(*DARK_GRAY)
         for idx, rec in enumerate(output.recommendations, 1):
-            self.cell(5)
+            self.set_x(self.l_margin + 2)
             self.multi_cell(0, 6, f"{idx}. {rec}")
             self.ln(2)
 
