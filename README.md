@@ -15,46 +15,42 @@ AI 기반 SAP 레거시 시스템 진단 및 전환 전략 도우미
 | **Clean Core Score** | 커스텀 코드 비중, ERP 버전, DB 유형, 모듈 복잡도를 종합하여 0-100점 산출 |
 | **기술 부채 히트맵** | 모듈별 커스텀 심각도 × 업계 가중치로 규칙 기반 기술 부채 시각화 |
 | **TCO Simulator** | 현재 vs 전환 후 총 소유 비용 비교 (3년 절감액 포함) |
-| **AI 진단 리포트** | Claude + RAG로 SAP 공식 가이드 기반 전환 전략 및 리스크 분석 |
+| **AI 진단 리포트** | Gemini + RAG 기반 리포트 생성 (실패 시 규칙 기반 자동 폴백) |
 | **EA Cookbook PDF** | 분석 결과를 임원 보고용 PDF로 자동 생성 |
 
 ## 아키텍처
 
 ```
 ┌─────────────────────────────────────────────────┐
-│                  Streamlit UI                    │
-│  ┌──────────┐  ┌──────────┐  ┌───────────────┐  │
-│  │Input Form│  │Dashboard │  │  PDF Download  │  │
-│  │(Profile) │  │(Plotly)  │  │ (EA Cookbook)  │  │
-│  └────┬─────┘  └────▲─────┘  └───────▲───────┘  │
-│       │              │                │          │
-├───────┼──────────────┼────────────────┼──────────┤
-│       ▼              │                │          │
-│  ┌─────────┐   ┌─────┴──────┐  ┌─────┴───────┐  │
-│  │  Cost   │   │    LLM     │  │     PDF     │  │
-│  │Calcul-  │   │  Engine    │  │  Generator  │  │
-│  │ ator    │   │ (3-Chain)  │  │  (fpdf2)    │  │
-│  │(Rules)  │   │            │  │             │  │
-│  └─────────┘   └─────┬──────┘  └─────────────┘  │
-│                       │                          │
-│               ┌───────▼────────┐                 │
-│               │  RAG Pipeline  │                 │
-│               │  (ChromaDB +   │                 │
-│               │   E5-small)    │                 │
-│               └───────┬────────┘                 │
-│                       │                          │
-│               ┌───────▼────────┐                 │
-│               │  SAP Knowledge │                 │
-│               │  Base (6 docs) │                 │
-│               └────────────────┘                 │
+│                  Streamlit UI                  │
+│  ┌──────────┐  ┌──────────┐  ┌───────────────┐ │
+│  │Input Form│  │Dashboard │  │  PDF Download │ │
+│  └────┬─────┘  └────▲─────┘  └───────▲───────┘ │
+│       │              │                │         │
+├───────┼──────────────┼────────────────┼─────────┤
+│       ▼              │                │         │
+│  ┌───────────────────────────────────────────┐  │
+│  │            Analysis Service               │  │
+│  │ (계산 → RAG → LLM 시도 → 폴백 → PDF)      │  │
+│  └───────┬───────────────┬───────────┬───────┘  │
+│          │               │           │          │
+│    ┌─────▼─────┐   ┌─────▼─────┐   ┌─▼────────┐ │
+│    │Cost Engine│   │RAG Pipeline│   │PDF Gen   │ │
+│    │(Rules)    │   │(Chroma+E5) │   │(fpdf2)   │ │
+│    └───────────┘   └─────┬──────┘   └──────────┘ │
+│                          │                        │
+│                    ┌─────▼─────┐                  │
+│                    │LLM Provider│                 │
+│                    │(Gemini)    │                 │
+│                    └────────────┘                 │
 └─────────────────────────────────────────────────┘
 ```
 
-### LLM 3-Chain 파이프라인
+### 리포트 생성 정책
 
-1. **Analyst Chain** – 현재 시스템의 핵심 문제점을 진단
-2. **Architect Chain** – RAG 검색 결과 기반으로 Clean Core 전환 전략 수립
-3. **Reporter Chain** – Executive Summary + 상세 리포트를 비즈니스 언어로 생성
+1. 기본 모드: **single-pass LLM** (요청 1회)
+2. 선택 모드: `LLM_PIPELINE_MODE=three_chain` (실험/고품질)
+3. 실패 모드: 쿼터/네트워크/Provider 오류 시 **규칙 기반 리포트 자동 폴백**
 
 ## 기술 스택
 
@@ -88,6 +84,17 @@ cp .env.example .env
 # .env 파일을 편집하여 Google Gemini API 키 입력
 ```
 
+### 2-1. 환경변수 (기본값)
+
+```bash
+LLM_PROVIDER=gemini
+LLM_PIPELINE_MODE=single
+LLM_MAX_RETRIES=2
+LLM_BASE_DELAY_SEC=5
+LLM_DISABLE=false
+RAG_MAX_CONTEXT_CHARS=6000
+```
+
 ### 3. 앱 실행
 
 ```bash
@@ -95,6 +102,12 @@ streamlit run app.py
 ```
 
 브라우저에서 `http://localhost:8501`로 접속합니다.
+
+### 4. 테스트 실행
+
+```bash
+python -m unittest discover -s tests -v
+```
 
 ## 프로젝트 구조
 
@@ -105,9 +118,11 @@ sap-clean-core-advisor/
 │   ├── schemas.py                  # Pydantic 데이터 모델
 │   └── __init__.py
 ├── services/
+│   ├── analysis_service.py         # 계산/RAG/LLM/폴백/PDF 오케스트레이션
 │   ├── cost_calculator.py          # 규칙 기반 Score/TCO/Risk 계산
-│   ├── llm_engine.py               # LangChain 3-Chain 파이프라인
-│   ├── rag_pipeline.py             # ChromaDB + E5 임베딩 RAG
+│   ├── llm_provider.py             # LLM provider 인터페이스 (payload/sections/error)
+│   ├── llm_engine.py               # Gemini provider 구현 (single/three_chain)
+│   ├── rag_pipeline.py             # ChromaDB + E5 임베딩 RAG 컨텍스트 공급자
 │   ├── pdf_generator.py            # EA Cookbook PDF 생성
 │   └── __init__.py
 ├── ui/
@@ -125,6 +140,10 @@ sap-clean-core-advisor/
 │       └── NotoSansKR-Regular.ttf  # 한글 PDF용 폰트
 ├── pyproject.toml
 ├── .env.example
+├── tests/
+│   ├── test_cost_calculator.py
+│   ├── test_analysis_service.py
+│   └── test_pdf_generator.py
 └── README.md
 ```
 

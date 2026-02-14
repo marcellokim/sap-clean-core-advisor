@@ -1,5 +1,7 @@
 """Pydantic schemas for Input/Output definitions."""
 
+from typing import Literal
+
 from pydantic import BaseModel, Field
 
 
@@ -63,4 +65,20 @@ class AdvisorOutput(BaseModel):
     # ── 기술 부채 ──
     tech_debt_breakdown: dict[str, float] = Field(
         description="모듈별 기술 부채 점수 (히트맵용)"
+    )
+
+    # ── 생성 메타데이터 ──
+    generation_mode: Literal["llm", "fallback"] = Field(
+        description="리포트 생성 모드: llm / fallback"
+    )
+    generation_provider: str | None = Field(
+        default=None,
+        description="리포트 생성 공급자 (예: gemini)",
+    )
+    generation_error_code: str | None = Field(
+        default=None,
+        description="LLM 실패/폴백 사유 코드",
+    )
+    analysis_id: str = Field(
+        description="분석 추적 ID",
     )

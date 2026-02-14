@@ -201,6 +201,17 @@ def render_dashboard(
         unsafe_allow_html=True,
     )
 
+    if output.generation_mode == "llm":
+        provider = output.generation_provider or "unknown"
+        st.success(f"🤖 AI 생성 리포트 ({provider})")
+    else:
+        reason = output.generation_error_code or "fallback"
+        st.warning(
+            "🧩 규칙 기반 리포트(LLM 쿼터/오류로 폴백) "
+            f"(코드: {reason})"
+        )
+    st.caption(f"analysis_id: {output.analysis_id}")
+
     # ── 핵심 KPI 카드 ──
     kpi1, kpi2, kpi3, kpi4 = st.columns(4)
     with kpi1:

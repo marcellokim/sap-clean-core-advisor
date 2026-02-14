@@ -7,8 +7,7 @@ import os
 import streamlit as st
 
 from models.schemas import CustomerInput
-from services.llm_engine import get_advice
-from services.pdf_generator import generate_pdf
+from services.analysis_service import analyze_customer_input
 from ui.dashboard import render_dashboard
 from ui.input_form import render_input_form
 
@@ -88,7 +87,9 @@ def main() -> None:
     # ── 분석 실행 ──
     with st.spinner("🔄 AI가 SAP Clean Core 분석을 수행하고 있습니다... (약 30-60초 소요)"):
         try:
-            output = get_advice(customer_input)
+            analysis_result = analyze_customer_input(customer_input)
+            output = analysis_result.output
+            pdf_bytes = analysis_result.pdf_bytes
         except Exception as e:
             err_msg = str(e).strip()
             if not os.getenv("GOOGLE_API_KEY", "").strip():
@@ -104,15 +105,14 @@ def main() -> None:
                     st.caption(f"상세 오류: {err_msg}")
             return
 
-    # ── PDF 생성 ──
-    try:
-        pdf_bytes = generate_pdf(output, customer_input)
-    except Exception as e:
-        pdf_bytes = None
-        err_msg = str(e).strip()
-        st.warning("PDF 생성에 실패하여 화면 결과만 제공합니다.")
-        if err_msg:
-            st.caption(f"PDF 오류 상세: {err_msg}")
+    # ── PDF 생성 결과 안내 ──
+    if analysis_result.pdf_error_code:
+        st.warning(
+            "PDF 생성에 실패하여 화면 결과만 제공합니다. "
+            f"(코드: {analysis_result.pdf_error_code})"
+        )
+        if analysis_result.pdf_error_message:
+            st.caption(f"PDF 오류 상세: {analysis_result.pdf_error_message}")
 
     # ── 결과 저장 (session_state) ──
     st.session_state["last_output"] = output

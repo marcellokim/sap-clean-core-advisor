@@ -9,13 +9,18 @@ from __future__ import annotations
 
 import hashlib
 import os
+from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
 
 from langchain_chroma import Chroma
-from langchain_community.embeddings import HuggingFaceEmbeddings
 from langchain_core.documents import Document
 from langchain_text_splitters import RecursiveCharacterTextSplitter
+
+try:
+    from langchain_huggingface import HuggingFaceEmbeddings
+except ImportError:  # pragma: no cover - compatibility fallback
+    from langchain_community.embeddings import HuggingFaceEmbeddings
 
 # ────────────────────────────────────────────────────────────────────
 # 상수
@@ -27,9 +32,29 @@ CHUNK_SIZE = 1000
 CHUNK_OVERLAP = 200
 COLLECTION_NAME = "sap_knowledge_base"
 TOP_K = 5
+DEFAULT_MAX_CONTEXT_CHARS = 6000
 
 _CACHED_VECTOR_STORE: Chroma | None = None
 _CACHED_DOCS_HASH: str | None = None
+
+
+@dataclass(frozen=True)
+class RAGContextBundle:
+    """RAG 컨텍스트와 메타데이터."""
+
+    context: str
+    sources: list[str]
+    chunk_count: int
+
+
+def _get_max_context_chars() -> int:
+    raw = os.getenv("RAG_MAX_CONTEXT_CHARS", str(DEFAULT_MAX_CONTEXT_CHARS)).strip()
+    try:
+        value = int(raw)
+    except ValueError:
+        return DEFAULT_MAX_CONTEXT_CHARS
+    return max(1000, value)
+
 
 @lru_cache(maxsize=1)
 def _get_embedding_function() -> HuggingFaceEmbeddings:
@@ -162,6 +187,16 @@ def get_context_for_input(
 
     여러 관점(버전, 모듈, 고충)에서 검색하여 풍부한 컨텍스트를 제공합니다.
     """
+    bundle = get_context_bundle_for_input(erp_version, modules, pain_points)
+    return bundle.context
+
+
+def get_context_bundle_for_input(
+    erp_version: str,
+    modules: list[str],
+    pain_points: str,
+) -> RAGContextBundle:
+    """고객 입력 정보를 기반으로 RAG 컨텍스트 번들을 생성."""
     queries = [
         f"{erp_version}에서 S/4HANA 전환 시 고려사항",
         f"SAP {', '.join(modules)} 모듈의 Clean Core 전환 전략",
@@ -184,11 +219,25 @@ def get_context_for_input(
 
     # passage: prefix 제거하여 깨끗한 컨텍스트 반환
     context_parts: list[str] = []
+    sources: list[str] = []
+    max_chars = _get_max_context_chars()
+
     for doc in all_chunks[:8]:  # 최대 8개 청크
         content = doc.page_content
         if content.startswith("passage: "):
             content = content[len("passage: "):]
         source = doc.metadata.get("source", "unknown")
-        context_parts.append(f"[출처: {source}]\n{content}")
+        part = f"[출처: {source}]\n{content}"
 
-    return "\n\n---\n\n".join(context_parts)
+        estimated_len = len("\n\n---\n\n".join(context_parts + [part]))
+        if estimated_len > max_chars:
+            break
+
+        context_parts.append(part)
+        sources.append(source)
+
+    return RAGContextBundle(
+        context="\n\n---\n\n".join(context_parts),
+        sources=sources,
+        chunk_count=len(context_parts),
+    )
