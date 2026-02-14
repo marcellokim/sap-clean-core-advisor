@@ -37,6 +37,31 @@ class CustomerInput(BaseModel):
     )
 
 
+class EvidenceItem(BaseModel):
+    """권고사항별 근거 체인 항목."""
+
+    claim_id: str = Field(description="권고사항/주장 식별자")
+    claim_text: str = Field(description="권고사항 원문")
+    evidence_grade: Literal["A", "B", "C", "D"] = Field(
+        description="근거 등급 (A: 입력+규칙, B: 규칙, C: 출처, D: 약함)"
+    )
+    input_facts: list[str] = Field(
+        default_factory=list,
+        description="주장과 직접 연관된 입력/계산 사실",
+    )
+    rule_ids: list[str] = Field(
+        default_factory=list,
+        description="주장에 연결된 규칙 ID 목록",
+    )
+    rag_sources: list[str] = Field(
+        default_factory=list,
+        description="주장 생성 시 참조된 RAG 출처 목록",
+    )
+    generation_mode: Literal["llm", "fallback"] = Field(
+        description="생성 모드 (llm/fallback)",
+    )
+
+
 class AdvisorOutput(BaseModel):
     """SAP Clean Core Advisor 결과 출력 스키마."""
 
@@ -81,4 +106,20 @@ class AdvisorOutput(BaseModel):
     )
     analysis_id: str = Field(
         description="분석 추적 ID",
+    )
+    ruleset_version: str = Field(
+        default="",
+        description="규칙 엔진 버전 (예: 2026.02.14.v1)",
+    )
+    validation_warnings: list[str] = Field(
+        default_factory=list,
+        description="입력/해석 품질 관련 비치명 경고",
+    )
+    stage_metrics_ms: dict[str, int] = Field(
+        default_factory=dict,
+        description="단계별 처리 시간(ms): calc/rag/llm/pdf/total",
+    )
+    evidence_ledger: list[EvidenceItem] = Field(
+        default_factory=list,
+        description="권고사항별 근거 체인",
     )

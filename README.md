@@ -17,6 +17,9 @@ AI 기반 SAP 레거시 시스템 진단 및 전환 전략 도우미
 | **TCO Simulator** | 현재 vs 전환 후 총 소유 비용 비교 (3년 절감액 포함) |
 | **AI 진단 리포트** | Gemini + RAG 기반 리포트 생성 (실패 시 규칙 기반 자동 폴백) |
 | **EA Cookbook PDF** | 분석 결과를 임원 보고용 PDF로 자동 생성 |
+| **Evidence Ledger** | 권고사항별 근거 체인(입력 사실/룰 ID/RAG 출처)과 근거 등급(A-D) 제공 |
+| **Rule Versioning** | 계산 결과에 `ruleset_version`과 `applied_rule_ids`를 기록해 재현성 확보 |
+| **Structured Observability** | 단계별 처리시간(ms), 생성 모드, 에러코드를 구조화 로그로 출력 |
 
 ## 아키텍처
 
@@ -51,6 +54,14 @@ AI 기반 SAP 레거시 시스템 진단 및 전환 전략 도우미
 1. 기본 모드: **single-pass LLM** (요청 1회)
 2. 선택 모드: `LLM_PIPELINE_MODE=three_chain` (실험/고품질)
 3. 실패 모드: 쿼터/네트워크/Provider 오류 시 **규칙 기반 리포트 자동 폴백**
+
+### 안정성/검증 원칙
+
+1. **LLM 실패는 제품 실패가 아님**: LLM 오류 시 규칙 기반 리포트로 즉시 폴백
+2. **같은 입력 = 같은 수치/근거**: `RULESET_VERSION` 기준으로 계산 수치와 룰 trace 재현 가능
+3. **근거 체인 공개**: 각 권고사항에 대해 Claim-Rule-Source를 함께 제시
+4. **오류코드 표준화**: LLM/RAG/PDF 오류를 `ERR_*` 코드로 일관 처리
+5. **관측성 내장**: `calc_ms/rag_ms/llm_ms/pdf_ms/total_ms`를 결과 메타와 로그에 기록
 
 ## 기술 스택
 
@@ -120,6 +131,7 @@ sap-clean-core-advisor/
 ├── services/
 │   ├── analysis_service.py         # 계산/RAG/LLM/폴백/PDF 오케스트레이션
 │   ├── cost_calculator.py          # 규칙 기반 Score/TCO/Risk 계산
+│   ├── error_codes.py              # 표준 에러코드 taxonomy
 │   ├── llm_provider.py             # LLM provider 인터페이스 (payload/sections/error)
 │   ├── llm_engine.py               # Gemini provider 구현 (single/three_chain)
 │   ├── rag_pipeline.py             # ChromaDB + E5 임베딩 RAG 컨텍스트 공급자
@@ -143,7 +155,10 @@ sap-clean-core-advisor/
 ├── tests/
 │   ├── test_cost_calculator.py
 │   ├── test_analysis_service.py
-│   └── test_pdf_generator.py
+│   ├── test_pdf_generator.py
+│   ├── test_error_codes.py
+│   ├── test_evidence_ledger.py
+│   └── test_validation_warnings.py
 └── README.md
 ```
 

@@ -7,6 +7,7 @@ from unittest.mock import patch
 
 from models.schemas import CustomerInput, ModuleInfo
 from services.analysis_service import analyze_customer_input
+from services.error_codes import ERR_LLM_RATE_LIMIT
 from services.llm_provider import LLMProviderError, ReportSections
 from services.rag_pipeline import RAGContextBundle
 
@@ -45,7 +46,7 @@ class AnalysisServiceTests(unittest.TestCase):
     )
     @patch(
         "services.llm_engine.GeminiReportProvider.generate_report",
-        side_effect=LLMProviderError("rate_limit", "429"),
+        side_effect=LLMProviderError(ERR_LLM_RATE_LIMIT, "429"),
     )
     def test_fallback_mode_on_rate_limit(
         self,
@@ -55,8 +56,12 @@ class AnalysisServiceTests(unittest.TestCase):
     ) -> None:
         result = analyze_customer_input(_sample_input())
         self.assertEqual(result.output.generation_mode, "fallback")
-        self.assertEqual(result.output.generation_error_code, "rate_limit")
+        self.assertEqual(result.output.generation_error_code, ERR_LLM_RATE_LIMIT)
         self.assertEqual(result.output.generation_provider, "gemini")
+        self.assertTrue(result.output.ruleset_version)
+        self.assertTrue(result.output.evidence_ledger)
+        self.assertIn("calc_ms", result.output.stage_metrics_ms)
+        self.assertIn("total_ms", result.output.stage_metrics_ms)
         self.assertTrue(result.output.executive_summary)
         self.assertIsNotNone(result.pdf_bytes)
 
@@ -87,6 +92,8 @@ class AnalysisServiceTests(unittest.TestCase):
         self.assertIsNone(result.output.generation_error_code)
         self.assertEqual(result.output.executive_summary, "LLM EXEC")
         self.assertEqual(result.output.detailed_report, "LLM DETAIL")
+        self.assertTrue(result.output.evidence_ledger)
+        self.assertIn("llm_ms", result.output.stage_metrics_ms)
 
 
 if __name__ == "__main__":

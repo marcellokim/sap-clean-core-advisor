@@ -5,6 +5,7 @@ from __future__ import annotations
 import unittest
 
 from models.schemas import AdvisorOutput, CustomerInput, ModuleInfo
+from services.error_codes import ERR_LLM_RATE_LIMIT
 from services.pdf_generator import generate_pdf
 
 
@@ -66,7 +67,7 @@ def _sample_output() -> AdvisorOutput:
         },
         generation_mode="fallback",
         generation_provider="gemini",
-        generation_error_code="rate_limit",
+        generation_error_code=ERR_LLM_RATE_LIMIT,
         analysis_id="test-analysis-id",
     )
 

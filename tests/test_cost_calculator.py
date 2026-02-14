@@ -5,7 +5,7 @@ from __future__ import annotations
 import unittest
 
 from models.schemas import CustomerInput, ModuleInfo
-from services.cost_calculator import calculate_tco, run_calculation
+from services.cost_calculator import RULESET_VERSION, calculate_tco, run_calculation
 
 
 def _sample_input(**overrides: object) -> CustomerInput:
@@ -34,10 +34,11 @@ def _sample_input(**overrides: object) -> CustomerInput:
 
 class CostCalculatorTests(unittest.TestCase):
     def test_tco_matches_expected_numbers(self) -> None:
-        current_tco, projected_tco, savings_3yr = calculate_tco(_sample_input())
+        current_tco, projected_tco, savings_3yr, applied_rule_ids = calculate_tco(_sample_input())
         self.assertAlmostEqual(current_tco, 1.06, places=2)
         self.assertAlmostEqual(projected_tco, 0.95, places=2)
         self.assertAlmostEqual(savings_3yr, 0.33, places=2)
+        self.assertIn("TCO_SAVINGS_3YR_DELTA", applied_rule_ids)
 
     def test_clean_core_score_and_breakdown_are_consistent(self) -> None:
         result = run_calculation(_sample_input())
@@ -46,6 +47,8 @@ class CostCalculatorTests(unittest.TestCase):
         self.assertEqual(result.score_breakdown["erp_version"], 40.0)
         self.assertEqual(result.score_breakdown["database"], 45.0)
         self.assertEqual(result.score_breakdown["module_complexity"], 58.0)
+        self.assertEqual(result.ruleset_version, RULESET_VERSION)
+        self.assertIn("RISK_ECC6_EOS_2027", result.applied_rule_ids)
 
     def test_budget_pressure_risk_is_added_for_high_tco_ratio(self) -> None:
         low_budget_input = _sample_input(annual_it_budget_krw=1.0)

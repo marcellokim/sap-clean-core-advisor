@@ -13,6 +13,7 @@ from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.runnables import Runnable
 
+from services.error_codes import ERR_LLM_AUTH, ERR_LLM_PROVIDER, ERR_LLM_RATE_LIMIT
 from services.llm_provider import LLMProviderError, ReportPayload, ReportSections
 
 load_dotenv()
@@ -230,7 +231,7 @@ class GeminiReportProvider:
             except Exception as e:
                 if _is_rate_limit_error(e):
                     if attempt == self._max_retries:
-                        raise LLMProviderError("rate_limit", str(e))
+                        raise LLMProviderError(ERR_LLM_RATE_LIMIT, str(e))
                     delay = self._base_delay * (2 ** attempt)
                     logger.warning(
                         "Rate limit hit (attempt %d/%d). Retrying in %ds...",
@@ -241,9 +242,9 @@ class GeminiReportProvider:
                     time.sleep(delay)
                     continue
                 if _is_auth_error(e):
-                    raise LLMProviderError("auth_error", str(e))
-                raise LLMProviderError("provider_error", str(e))
-        raise LLMProviderError("provider_error", "Unexpected provider failure")
+                    raise LLMProviderError(ERR_LLM_AUTH, str(e))
+                raise LLMProviderError(ERR_LLM_PROVIDER, str(e))
+        raise LLMProviderError(ERR_LLM_PROVIDER, "Unexpected provider failure")
 
     def _generate_single_pass(self, payload: ReportPayload) -> ReportSections:
         single_prompt = ChatPromptTemplate.from_messages([

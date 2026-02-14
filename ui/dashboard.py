@@ -10,6 +10,7 @@ import streamlit as st
 import plotly.graph_objects as go
 
 from models.schemas import AdvisorOutput, CustomerInput
+from services.error_codes import ERR_LLM_PROVIDER
 
 
 # ────────────────────────────────────────────────────────────────────
@@ -205,12 +206,19 @@ def render_dashboard(
         provider = output.generation_provider or "unknown"
         st.success(f"🤖 AI 생성 리포트 ({provider})")
     else:
-        reason = output.generation_error_code or "fallback"
+        reason = output.generation_error_code or ERR_LLM_PROVIDER
         st.warning(
             "🧩 규칙 기반 리포트(LLM 쿼터/오류로 폴백) "
             f"(코드: {reason})"
         )
-    st.caption(f"analysis_id: {output.analysis_id}")
+    st.caption(
+        f"analysis_id: {output.analysis_id} | ruleset: {output.ruleset_version}"
+    )
+    if output.stage_metrics_ms:
+        metrics_text = ", ".join(
+            f"{key}={value}ms" for key, value in output.stage_metrics_ms.items()
+        )
+        st.caption(f"stage_metrics: {metrics_text}")
 
     # ── 핵심 KPI 카드 ──
     kpi1, kpi2, kpi3, kpi4 = st.columns(4)
@@ -275,11 +283,30 @@ def render_dashboard(
         for rf in output.risk_factors:
             st.markdown(f"- 🔸 {rf}")
 
+    if output.validation_warnings:
+        st.subheader("🧪 입력 검증 경고")
+        for warning in output.validation_warnings:
+            st.markdown(f"- ⚠️ {warning}")
+
     # ── 핵심 권고사항 ──
     if output.recommendations:
         st.subheader("💡 핵심 권고사항")
         for idx, rec in enumerate(output.recommendations, 1):
             st.markdown(f"**{idx}.** {rec}")
+
+    if output.evidence_ledger:
+        st.subheader("🔗 근거 체인 (Evidence Ledger)")
+        table_rows = []
+        for item in output.evidence_ledger:
+            table_rows.append(
+                {
+                    "Claim": item.claim_text,
+                    "Grade": item.evidence_grade,
+                    "Rules": ", ".join(item.rule_ids) if item.rule_ids else "-",
+                    "Sources": ", ".join(item.rag_sources) if item.rag_sources else "-",
+                }
+            )
+        st.dataframe(table_rows, width="stretch", hide_index=True)
 
     st.markdown("---")
 
