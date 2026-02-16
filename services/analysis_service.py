@@ -27,6 +27,8 @@ from services.llm_engine import GeminiReportProvider
 from services.llm_provider import LLMProviderError, ReportPayload, ReportSections
 from services.pdf_generator import generate_pdf
 from services.rag_pipeline import RAGContextBundle, get_context_bundle_for_input
+from services.reference_mapper import get_reference_source_ids
+from services.ruleset_loader import resolve_ruleset_profile
 
 logger = logging.getLogger(__name__)
 
@@ -381,6 +383,7 @@ def _build_evidence_ledger(
             fallback_sources=fallback_sources,
         )
         evidence_grade = _grade_evidence(trace.input_facts, trace.rule_ids, rag_sources)
+        reference_source_ids = get_reference_source_ids(trace.rule_ids)
         ledger.append(
             EvidenceItem(
                 claim_id=f"CLAIM_{idx:02d}",
@@ -389,6 +392,7 @@ def _build_evidence_ledger(
                 input_facts=trace.input_facts,
                 rule_ids=trace.rule_ids,
                 rag_sources=rag_sources,
+                reference_source_ids=reference_source_ids,
                 generation_mode=generation_mode,
             )
         )
@@ -455,7 +459,8 @@ def analyze_customer_input(customer_input: CustomerInput) -> AnalysisResult:
     }
 
     calc_start = time.perf_counter()
-    calc = run_calculation(customer_input)
+    ruleset_resolution = resolve_ruleset_profile(customer_input.industry)
+    calc = run_calculation(customer_input, ruleset_profile=ruleset_resolution.profile)
     customer_info = _format_customer_info(customer_input)
     recommendation_traces = _extract_recommendations(calc, customer_input)
     recommendations = [trace.text for trace in recommendation_traces]
@@ -510,7 +515,8 @@ def analyze_customer_input(customer_input: CustomerInput) -> AnalysisResult:
     stage_metrics_ms["llm_ms"] = _elapsed_ms(llm_start)
 
     evidence_ledger = _build_evidence_ledger(recommendation_traces, generation_mode, rag_bundle)
-    validation_warnings = _build_validation_warnings(customer_input, calc)
+    validation_warnings = list(ruleset_resolution.warnings)
+    validation_warnings.extend(_build_validation_warnings(customer_input, calc))
     if rag_error_code:
         validation_warnings.append(
             f"{rag_error_code}: 컨텍스트 소스를 불러오지 못해 규칙 기반 정보 중심으로 생성했습니다."
@@ -533,6 +539,9 @@ def analyze_customer_input(customer_input: CustomerInput) -> AnalysisResult:
         generation_error_code=generation_error_code,
         analysis_id=analysis_id,
         ruleset_version=calc.ruleset_version,
+        ruleset_profile_id=calc.ruleset_profile_id,
+        ruleset_profile_source=calc.ruleset_profile_source,
+        calibration_quality=calc.calibration_quality,
         validation_warnings=validation_warnings,
         stage_metrics_ms=stage_metrics_ms,
         evidence_ledger=evidence_ledger,
@@ -562,6 +571,9 @@ def analyze_customer_input(customer_input: CustomerInput) -> AnalysisResult:
                 "rag_error_code": rag_error_code,
                 "pdf_error_code": pdf_error_code,
                 "ruleset_version": calc.ruleset_version,
+                "ruleset_profile_id": calc.ruleset_profile_id,
+                "ruleset_profile_source": calc.ruleset_profile_source,
+                "calibration_quality": calc.calibration_quality,
                 "stage_metrics_ms": stage_metrics_ms,
                 "evidence_count": len(evidence_ledger),
             },

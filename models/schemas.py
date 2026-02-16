@@ -57,6 +57,10 @@ class EvidenceItem(BaseModel):
         default_factory=list,
         description="주장 생성 시 참조된 RAG 출처 목록",
     )
+    reference_source_ids: list[str] = Field(
+        default_factory=list,
+        description="규칙 ID 기반 문헌/리포트 출처 ID",
+    )
     generation_mode: Literal["llm", "fallback"] = Field(
         description="생성 모드 (llm/fallback)",
     )
@@ -110,6 +114,18 @@ class AdvisorOutput(BaseModel):
     ruleset_version: str = Field(
         default="",
         description="규칙 엔진 버전 (예: 2026.02.14.v1)",
+    )
+    ruleset_profile_id: str = Field(
+        default="base",
+        description="적용된 룰셋 프로파일 ID",
+    )
+    ruleset_profile_source: Literal["base", "industry", "generated"] = Field(
+        default="base",
+        description="룰셋 출처(base/industry/generated)",
+    )
+    calibration_quality: dict[str, float] = Field(
+        default_factory=dict,
+        description="룰셋 보정 품질 메트릭 (예: mape_tco, risk_agreement)",
     )
     validation_warnings: list[str] = Field(
         default_factory=list,

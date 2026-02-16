@@ -212,8 +212,14 @@ def render_dashboard(
             f"(코드: {reason})"
         )
     st.caption(
-        f"analysis_id: {output.analysis_id} | ruleset: {output.ruleset_version}"
+        f"analysis_id: {output.analysis_id} | ruleset: {output.ruleset_version} "
+        f"({output.ruleset_profile_id}/{output.ruleset_profile_source})"
     )
+    if output.calibration_quality:
+        quality_text = ", ".join(
+            f"{k}={v:.4f}" for k, v in output.calibration_quality.items()
+        )
+        st.caption(f"calibration_quality: {quality_text}")
     if output.stage_metrics_ms:
         metrics_text = ", ".join(
             f"{key}={value}ms" for key, value in output.stage_metrics_ms.items()
@@ -304,6 +310,7 @@ def render_dashboard(
                     "Grade": item.evidence_grade,
                     "Rules": ", ".join(item.rule_ids) if item.rule_ids else "-",
                     "Sources": ", ".join(item.rag_sources) if item.rag_sources else "-",
+                    "Ref IDs": ", ".join(item.reference_source_ids) if item.reference_source_ids else "-",
                 }
             )
         st.dataframe(table_rows, width="stretch", hide_index=True)

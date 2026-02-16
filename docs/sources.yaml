@@ -1,0 +1,100 @@
+{
+  "sources": [
+    {
+      "source_id": "SRC_GOOGLE_GEMINI_RATE_LIMITS",
+      "title": "Gemini API rate limits",
+      "url": "https://ai.google.dev/gemini-api/docs/rate-limits",
+      "tier": "official",
+      "access": "open",
+      "claims_supported": [
+        "LLM quota and retry policy"
+      ],
+      "last_verified_date": "2026-02-16",
+      "verification_method": "script"
+    },
+    {
+      "source_id": "SRC_SAP_MAINTENANCE_STRATEGY",
+      "title": "SAP product strategy and maintenance information",
+      "url": "https://support.sap.com/en/offerings-programs/strategy.html",
+      "tier": "official",
+      "access": "open",
+      "claims_supported": [
+        "ECC/S4 maintenance timeline and transition urgency"
+      ],
+      "last_verified_date": "2026-02-16",
+      "verification_method": "script"
+    },
+    {
+      "source_id": "SRC_SAP_CLEAN_CORE",
+      "title": "SAP Clean Core strategy",
+      "url": "https://www.sap.com/products/erp/rise/methodology/clean-core.html",
+      "tier": "official",
+      "access": "open",
+      "claims_supported": [
+        "Clean Core principle and extension pattern"
+      ],
+      "last_verified_date": "2026-02-16",
+      "verification_method": "script"
+    },
+    {
+      "source_id": "SRC_SAP_READINESS_CHECK",
+      "title": "SAP Readiness Check",
+      "url": "https://help.sap.com/doc/bb0e7ba5158c424ab7ce010228bf1de1",
+      "tier": "official",
+      "access": "open",
+      "claims_supported": [
+        "Migration readiness and analysis workflow"
+      ],
+      "last_verified_date": "2026-02-16",
+      "verification_method": "script"
+    },
+    {
+      "source_id": "SRC_SAP_CUSTOM_CODE_MIGRATION",
+      "title": "SAP Custom Code Migration Worklist",
+      "url": "https://help.sap.com/doc/saphelp_nw75/7.5.5/en-US/11/84265accb6415b925bf6ee60a30362/content.htm",
+      "tier": "official",
+      "access": "open",
+      "claims_supported": [
+        "Custom code analysis and remediation categories"
+      ],
+      "last_verified_date": "2026-02-16",
+      "verification_method": "script"
+    },
+    {
+      "source_id": "SRC_ASUG_S4_ADOPTION",
+      "title": "ASUG S/4HANA adoption trends",
+      "url": "https://www.asug.com/insights/the-state-of-sap-s-4hana-adoption-trends-successes-and-challenges",
+      "tier": "benchmark",
+      "access": "open",
+      "claims_supported": [
+        "Market benchmark for S/4 migration outcomes"
+      ],
+      "last_verified_date": "2026-02-16",
+      "verification_method": "script"
+    },
+    {
+      "source_id": "SRC_SAPINSIDER_MIGRATION_2025",
+      "title": "SAPinsider S/4 migration benchmark",
+      "url": "https://sapinsider.org/webinars/sap-s4hana-migration-2025/",
+      "tier": "benchmark",
+      "access": "open",
+      "claims_supported": [
+        "Migration project benchmark and risk patterns"
+      ],
+      "last_verified_date": "2026-02-16",
+      "verification_method": "script"
+    },
+    {
+      "source_id": "SRC_HYNDMAN_ACCURACY",
+      "title": "Forecast accuracy measures review",
+      "url": "https://robjhyndman.com/publications/another-look-at-measures-of-forecast-accuracy/",
+      "tier": "academic",
+      "access": "open",
+      "claims_supported": [
+        "MAPE and accuracy metrics rationale"
+      ],
+      "last_verified_date": "2026-02-16",
+      "verification_method": "script"
+    }
+  ]
+}

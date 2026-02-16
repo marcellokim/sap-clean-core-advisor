@@ -48,6 +48,8 @@ class CostCalculatorTests(unittest.TestCase):
         self.assertEqual(result.score_breakdown["database"], 45.0)
         self.assertEqual(result.score_breakdown["module_complexity"], 58.0)
         self.assertEqual(result.ruleset_version, RULESET_VERSION)
+        self.assertEqual(result.ruleset_profile_id, "manufacturing")
+        self.assertEqual(result.ruleset_profile_source, "industry")
         self.assertIn("RISK_ECC6_EOS_2027", result.applied_rule_ids)
 
     def test_budget_pressure_risk_is_added_for_high_tco_ratio(self) -> None:

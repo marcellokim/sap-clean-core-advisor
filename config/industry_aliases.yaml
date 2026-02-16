@@ -1,0 +1,24 @@
+{
+  "aliases": {
+    "manufacturing": [
+      "manufacturing",
+      "mfg",
+      "manufacture",
+      "제조",
+      "제조업"
+    ],
+    "retail": [
+      "retail",
+      "commerce",
+      "유통",
+      "리테일"
+    ],
+    "finance": [
+      "finance",
+      "financial",
+      "banking",
+      "금융",
+      "은행"
+    ]
+  }
+}

@@ -12,10 +12,10 @@ from services.llm_provider import LLMProviderError, ReportSections
 from services.rag_pipeline import RAGContextBundle
 
 
-def _sample_input() -> CustomerInput:
+def _sample_input(industry: str = "제조") -> CustomerInput:
     return CustomerInput(
         company_name="테스트제조",
-        industry="제조",
+        industry=industry,
         erp_version="ECC 6.0",
         db_type="Oracle",
         db_size_gb=500.0,
@@ -59,6 +59,8 @@ class AnalysisServiceTests(unittest.TestCase):
         self.assertEqual(result.output.generation_error_code, ERR_LLM_RATE_LIMIT)
         self.assertEqual(result.output.generation_provider, "gemini")
         self.assertTrue(result.output.ruleset_version)
+        self.assertEqual(result.output.ruleset_profile_source, "industry")
+        self.assertEqual(result.output.ruleset_profile_id, "manufacturing")
         self.assertTrue(result.output.evidence_ledger)
         self.assertIn("calc_ms", result.output.stage_metrics_ms)
         self.assertIn("total_ms", result.output.stage_metrics_ms)
@@ -94,6 +96,31 @@ class AnalysisServiceTests(unittest.TestCase):
         self.assertEqual(result.output.detailed_report, "LLM DETAIL")
         self.assertTrue(result.output.evidence_ledger)
         self.assertIn("llm_ms", result.output.stage_metrics_ms)
+
+    @patch("services.analysis_service.generate_pdf", return_value=b"%PDF-test")
+    @patch(
+        "services.analysis_service.get_context_bundle_for_input",
+        return_value=RAGContextBundle(
+            context="",
+            sources=[],
+            chunk_count=0,
+        ),
+    )
+    @patch(
+        "services.llm_engine.GeminiReportProvider.generate_report",
+        side_effect=LLMProviderError(ERR_LLM_RATE_LIMIT, "429"),
+    )
+    def test_unknown_industry_uses_base_profile_and_warning(
+        self,
+        _mock_llm: object,
+        _mock_rag: object,
+        _mock_pdf: object,
+    ) -> None:
+        result = analyze_customer_input(_sample_input(industry="UnknownVertical"))
+        self.assertEqual(result.output.ruleset_profile_source, "base")
+        self.assertTrue(
+            any("INDUSTRY_MAPPING_FALLBACK_TO_BASE" in w for w in result.output.validation_warnings)
+        )
 
 
 if __name__ == "__main__":
