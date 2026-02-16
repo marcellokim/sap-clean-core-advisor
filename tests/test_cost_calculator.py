@@ -50,7 +50,7 @@ class CostCalculatorTests(unittest.TestCase):
         self.assertEqual(result.ruleset_version, RULESET_VERSION)
         self.assertEqual(result.ruleset_profile_id, "manufacturing")
         self.assertEqual(result.ruleset_profile_source, "industry")
-        self.assertIn("RISK_ECC6_EOS_2027", result.applied_rule_ids)
+        self.assertIn("RISK_BS7_MAINSTREAM_END_2027", result.applied_rule_ids)
 
     def test_budget_pressure_risk_is_added_for_high_tco_ratio(self) -> None:
         low_budget_input = _sample_input(annual_it_budget_krw=1.0)

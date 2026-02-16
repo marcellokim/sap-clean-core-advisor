@@ -42,9 +42,9 @@ class EACookbookPDF(FPDF):
     def _register_fonts(self) -> None:
         """한글 폰트를 등록."""
         font_path = str(FONT_FILE)
-        self.add_font("NotoSansKR", "", font_path, uni=True)
+        self.add_font("NotoSansKR", "", font_path)
         # 변수 폰트이므로 동일 파일을 Bold로도 등록
-        self.add_font("NotoSansKR", "B", font_path, uni=True)
+        self.add_font("NotoSansKR", "B", font_path)
 
     def header(self) -> None:
         """페이지 헤더."""

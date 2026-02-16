@@ -1,0 +1,21 @@
+company_id,industry,erp_version,db_type,num_users,num_custom_programs,custom_code_ratio,actual_current_tco,actual_projected_tco,actual_risk_level,migration_duration_months,db_size_gb,annual_it_budget_krw,pain_points
+MFG-001,제조,ECC 6.0,Oracle,800,350,45,1.06,0.95,Medium,18,500,50,월 결산 지연
+MFG-002,manufacturing,ECC 6.0 EHP8,Oracle,1200,500,52,1.63,1.45,High,14,900,70,커스텀 호환성 이슈
+MFG-003,제조업,S/4HANA 2021,SAP HANA,700,120,22,0.82,0.79,Low,20,350,45,운영 표준화 필요
+MFG-004,mfg,ECC 5.0,Microsoft SQL Server,950,620,68,1.72,1.58,High,10,1100,55,지원 종료 압박
+MFG-005,제조,ECC 6.0,Oracle,600,210,38,0.89,0.81,Medium,16,420,40,분석 성능 저하
+RTL-001,retail,ECC 6.0,Oracle,900,270,41,1.14,1.03,Medium,15,650,60,프로모션 시즌 부하
+RTL-002,유통/리테일,S/4HANA 2020,SAP HANA,750,180,29,0.93,0.88,Low,20,470,52,채널 통합 과제
+RTL-003,commerce,ECC 6.0 EHP7,Oracle,1400,700,63,2.01,1.82,High,12,1300,80,커스텀 과다
+FIN-001,금융/보험,ECC 6.0,Oracle,1100,480,57,1.89,1.74,High,14,980,90,감사 대응 복잡성
+FIN-002,finance,S/4HANA 2023,SAP HANA,650,140,24,1.02,0.97,Low,22,540,75,보고 자동화 필요
+FIN-003,banking,ECC 6.0 EHP8,IBM DB2,1300,520,59,2.08,1.91,High,13,1500,85,규제 대응 일정 촉박
+MFG-006,제조,ECC 6.0,Oracle,1000,400,47,1.28,1.14,Medium,17,780,62,인터페이스 장애 빈발
+MFG-007,manufacturing,S/4HANA,SAP HANA,820,160,27,0.98,0.93,Low,19,510,58,표준 프로세스 정착
+RTL-004,리테일,ECC 6.0,Oracle,1050,330,44,1.31,1.19,Medium,16,840,66,가격정책 변경 빈번
+FIN-004,금융,ECC 6.0,Oracle,1500,760,66,2.35,2.16,High,11,1800,95,대규모 커스텀 누적
+MFG-008,제조,ECC 6.0 EHP7,Oracle,880,290,40,1.17,1.05,Medium,18,690,57,확장개발 표준화 필요
+RTL-005,retail,S/4HANA 2021,SAP HANA,720,150,26,0.91,0.86,Low,21,430,49,재고 가시성 개선
+FIN-005,financial,S/4HANA 2020,SAP HANA,980,260,33,1.41,1.33,Medium,18,760,78,리포팅 통합 필요
+MFG-009,제조,ECC 6.0,Oracle,670,230,36,0.96,0.87,Medium,17,510,48,마스터데이터 정합성
+MFG-010,manufacture,ECC 6.0,Oracle,930,360,46,1.22,1.10,Medium,16,740,59,전환 일정 리스크

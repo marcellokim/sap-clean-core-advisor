@@ -281,8 +281,12 @@ def assess_risks(
             f"{inp.erp_version}는 지원 종료(EOS) 임박 – 즉각적인 전환 계획 필요"
         )
     elif "ECC 6.0" in inp.erp_version:
-        applied_rule_ids.append("RISK_ECC6_EOS_2027")
-        risk_factors.append("ECC 6.0 메인스트림 지원 종료 – 2027년까지 전환 권고")
+        applied_rule_ids.append("RISK_BS7_MAINSTREAM_END_2027")
+        applied_rule_ids.append("INFO_BS7_EXTENDED_MAINT_AVAILABLE_2030")
+        risk_factors.append(
+            "Business Suite 7 메인스트림 유지보수 종료(2027-12-31) 예정 – "
+            "Extended Maintenance 옵션(2030-12-31) 검토 필요"
+        )
 
     if "HANA" not in inp.db_type.upper():
         applied_rule_ids.append("RISK_DB_NOT_HANA")

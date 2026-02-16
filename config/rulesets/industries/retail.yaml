@@ -1,10 +1,7 @@
 {
   "ruleset_version": "2026.02.14.v1",
   "profile_id": "retail",
-  "calibration_quality": {
-    "mape_tco": 0.0,
-    "risk_agreement": 1.0
-  },
+  "calibration_quality": {},
   "module_weights": {
     "FI": 1.4,
     "CO": 1.1,

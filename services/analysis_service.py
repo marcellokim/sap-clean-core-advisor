@@ -98,8 +98,9 @@ def _build_fallback_reports(
     summary = (
         f"### {inp.company_name} Clean Core 사전진단 요약\n\n"
         f"- 현재 Clean Core 점수는 **{calc.clean_core_score:.1f}/100**이며, 리스크 수준은 **{calc.risk_level}**입니다.\n"
-        f"- 현재 연간 TCO **{calc.current_annual_tco:.1f}억원** 대비 전환 후 **{calc.projected_tco_after_migration:.1f}억원**으로, "
+        f"- 현재 연간 TCO **추정치** **{calc.current_annual_tco:.1f}억원** 대비 전환 후 **추정치** **{calc.projected_tco_after_migration:.1f}억원**으로, "
         f"3년 누적 **{calc.tco_savings_3yr:.1f}억원** 변화가 예상됩니다.\n\n"
+        "- 본 TCO 수치는 계약/조달 조건이 아닌 의사결정용 상대 비교 추정치입니다.\n\n"
         "#### 핵심 리스크\n"
         + "\n".join(f"- {risk}" for risk in top_risks)
         + "\n\n#### 즉시 실행 Action\n"
@@ -118,9 +119,10 @@ def _build_fallback_reports(
         "- Phase 2: 핵심 모듈 우선 전환(FI/CO/MM 등)\n"
         "- Phase 3: BTP 기반 확장 전환 및 운영 안정화\n\n"
         "## 4. TCO 분석\n"
-        f"- 현재 연간 TCO: {calc.current_annual_tco:.1f}억원\n"
-        f"- 전환 후 연간 TCO: {calc.projected_tco_after_migration:.1f}억원\n"
+        f"- 현재 연간 TCO 추정치: {calc.current_annual_tco:.1f}억원\n"
+        f"- 전환 후 연간 TCO 추정치: {calc.projected_tco_after_migration:.1f}억원\n"
         f"- 3년 누적 절감/증가: {calc.tco_savings_3yr:.1f}억원\n\n"
+        "- 가정: 본 추정치는 계약/라이선스/조달 조건 미반영 상대 비교 수치입니다.\n\n"
         "## 5. 리스크 관리\n"
         + "\n".join(f"- {risk}" for risk in calc.risk_factors)
         + "\n\n## 6. 다음 단계\n"
@@ -167,10 +169,15 @@ def _extract_recommendations(calc: CalculationResult, inp: CustomerInput) -> lis
 
     if "ECC" in inp.erp_version:
         _append(
-            f"현재 {inp.erp_version}의 메인스트림 지원이 종료됩니다. "
-            "RISE with SAP을 통한 S/4HANA 전환을 권고합니다.",
-            "REC_ECC_VERSION_TRANSITION",
-            [f"ERP 버전 {inp.erp_version}", "ECC 6.0 메인스트림 지원 종료(2027)"],
+            f"현재 {inp.erp_version}은 Business Suite 7 메인스트림 유지보수 종료(2027-12-31)에 해당합니다. "
+            "RISE with SAP 기반 S/4HANA 전환 계획을 수립하세요.",
+            "REC_BS7_MAINSTREAM_END_2027",
+            [f"ERP 버전 {inp.erp_version}", "BS7 메인스트림 종료일: 2027-12-31"],
+        )
+        _append(
+            "Extended Maintenance 옵션(2030-12-31)도 존재하지만, 비용/가치 관점에서 임시 완충책으로만 검토하세요.",
+            "INFO_BS7_EXTENDED_MAINT_AVAILABLE_2030",
+            ["BS7 Extended Maintenance 가능 시점: 2030-12-31"],
         )
 
     if "HANA" not in inp.db_type.upper():
@@ -433,7 +440,7 @@ def _build_validation_warnings(inp: CustomerInput, calc: CalculationResult) -> l
             warnings.append(
                 f"현재 TCO/예산 비율이 {budget_ratio:.2f}로 매우 높습니다. 예산값 단위(억원) 입력을 재확인하세요."
             )
-        elif budget_ratio < 0.05:
+        elif budget_ratio < 0.01:
             warnings.append(
                 f"현재 TCO/예산 비율이 {budget_ratio:.2f}로 매우 낮습니다. 예산/사용자/커스텀 입력 누락 여부를 확인하세요."
             )

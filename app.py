@@ -3,13 +3,48 @@
 입력 → 규칙 기반 계산 → AI 분석(RAG) → 시각화 → PDF 다운로드 전체 플로우를 통합합니다.
 """
 
+import io
 import os
+import zipfile
+from pathlib import Path
+
 import streamlit as st
 
 from models.schemas import CustomerInput
 from services.analysis_service import analyze_customer_input
 from ui.dashboard import render_dashboard
 from ui.input_form import render_input_form
+
+DOCS_ROOT = Path(__file__).resolve().parent / "docs"
+
+
+def _build_support_pack_zip(language_mode: str) -> bytes:
+    """Build downloadable EA support pack ZIP bytes."""
+    include_all = language_mode == "ALL"
+    language_suffix = f"_{language_mode}.md"
+    candidates: list[Path] = []
+    for folder in ("workshop-kit", "joule-playbook", "ops-toolkit", "ea-cookbook"):
+        folder_path = DOCS_ROOT / folder
+        if not folder_path.exists():
+            continue
+        for path in sorted(folder_path.glob("*")):
+            if path.is_dir():
+                continue
+            name = path.name
+            if include_all:
+                candidates.append(path)
+            else:
+                if name.endswith(language_suffix):
+                    candidates.append(path)
+                elif "_KO" not in name and "_EN" not in name:
+                    candidates.append(path)
+
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", compression=zipfile.ZIP_DEFLATED) as zf:
+        for path in candidates:
+            arcname = str(path.relative_to(DOCS_ROOT.parent))
+            zf.write(path, arcname=arcname)
+    return buf.getvalue()
 
 # ────────────────────────────────────────────────────────────────────
 # 페이지 설정
@@ -46,6 +81,20 @@ with st.sidebar:
         - 💹 TCO 절감 효과를 숫자로 증명
         - 📄 임원 보고용 EA Cookbook 즉시 생성
         """
+    )
+    st.divider()
+    pack_lang = st.selectbox(
+        "EA Support Pack Language",
+        options=["KO", "EN", "ALL"],
+        index=0,
+    )
+    support_zip = _build_support_pack_zip(pack_lang)
+    st.download_button(
+        label="📦 Download EA Support Pack",
+        data=support_zip,
+        file_name=f"EA_Support_Pack_{pack_lang}.zip",
+        mime="application/zip",
+        width="stretch",
     )
     st.divider()
     st.caption(

@@ -215,11 +215,13 @@ def render_dashboard(
         f"analysis_id: {output.analysis_id} | ruleset: {output.ruleset_version} "
         f"({output.ruleset_profile_id}/{output.ruleset_profile_source})"
     )
-    if output.calibration_quality:
+    if output.ruleset_profile_source == "generated" and output.calibration_quality:
         quality_text = ", ".join(
             f"{k}={v:.4f}" for k, v in output.calibration_quality.items()
         )
         st.caption(f"calibration_quality: {quality_text}")
+    else:
+        st.caption("calibration_quality: baseline ruleset (project-specific calibration not applied)")
     if output.stage_metrics_ms:
         metrics_text = ", ".join(
             f"{key}={value}ms" for key, value in output.stage_metrics_ms.items()
@@ -231,11 +233,11 @@ def render_dashboard(
     with kpi1:
         st.metric("Clean Core Score", f"{output.clean_core_score:.1f} / 100")
     with kpi2:
-        st.metric("현재 연간 TCO", f"{output.current_annual_tco:.1f}억원")
+        st.metric("현재 연간 TCO 추정치", f"{output.current_annual_tco:.1f}억원")
     with kpi3:
         delta_tco = output.projected_tco_after_migration - output.current_annual_tco
         st.metric(
-            "전환 후 TCO",
+            "전환 후 TCO 추정치",
             f"{output.projected_tco_after_migration:.1f}억원",
             delta=f"{delta_tco:+.1f}억원",
             delta_color="inverse",

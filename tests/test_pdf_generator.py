@@ -50,7 +50,7 @@ def _sample_output() -> AdvisorOutput:
         risk_level="Medium",
         risk_factors=[
             "커스텀 코드 비중 45.0% – 선별적 코드 정리 필요",
-            "ECC 6.0 메인스트림 지원 종료 – 2027년까지 전환 권고",
+            "Business Suite 7 메인스트림 유지보수 종료(2027-12-31) 예정 – Extended Maintenance 옵션(2030-12-31) 검토 필요",
             "현재 DB(Oracle)에서 SAP HANA로의 마이그레이션 필요 – 추가 비용 및 기간 발생",
         ],
         recommendations=[
