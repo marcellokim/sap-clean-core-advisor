@@ -207,10 +207,21 @@ def render_dashboard(
         st.success(f"🤖 AI 생성 리포트 ({provider})")
     else:
         reason = output.generation_error_code or ERR_LLM_PROVIDER
-        st.warning(
-            "🧩 규칙 기반 리포트(LLM 쿼터/오류로 폴백) "
-            f"(코드: {reason})"
-        )
+        if output.llm_status == "skipped":
+            st.info(f"🧩 규칙 기반 리포트(정책상 LLM 단계 스킵) (코드: {reason})")
+        else:
+            st.warning(
+                "🧩 규칙 기반 리포트(LLM 쿼터/오류로 폴백) "
+                f"(코드: {reason})"
+            )
+    st.caption(f"analysis_mode: {output.analysis_mode}")
+    status_col1, status_col2, status_col3 = st.columns(3)
+    with status_col1:
+        st.metric("RAG", output.rag_status.upper())
+    with status_col2:
+        st.metric("LLM", output.llm_status.upper())
+    with status_col3:
+        st.metric("PDF", output.pdf_status.upper())
     st.caption(
         f"analysis_id: {output.analysis_id} | ruleset: {output.ruleset_version} "
         f"({output.ruleset_profile_id}/{output.ruleset_profile_source})"

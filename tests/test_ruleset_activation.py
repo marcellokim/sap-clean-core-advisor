@@ -1,4 +1,4 @@
-"""Tests for ruleset resolution precedence and fallback behavior."""
+"""Tests for generated ruleset activation guard."""
 
 from __future__ import annotations
 
@@ -59,25 +59,51 @@ def _payload(profile_id: str) -> dict[str, object]:
     }
 
 
-class RulesetLoaderTests(unittest.TestCase):
+class RulesetActivationTests(unittest.TestCase):
     def setUp(self) -> None:
         resolve_ruleset_profile.cache_clear()
 
-    def test_generated_profile_has_highest_priority(self) -> None:
+    def test_generated_ruleset_disabled_by_default(self) -> None:
         with tempfile.TemporaryDirectory() as td:
             root = Path(td) / "rulesets"
             (root / "industries").mkdir(parents=True)
             (root / "generated").mkdir(parents=True)
             (root / "base.yaml").write_text(json.dumps(_payload("base")), encoding="utf-8")
             (root / "industries" / "manufacturing.yaml").write_text(
-                json.dumps(_payload("manufacturing-industry")),
+                json.dumps(_payload("industry-manufacturing")),
                 encoding="utf-8",
             )
             (root / "generated" / "manufacturing.yaml").write_text(
-                json.dumps(_payload("manufacturing-generated")),
+                json.dumps(_payload("generated-manufacturing")),
                 encoding="utf-8",
             )
+            with patch.dict(
+                os.environ,
+                {
+                    "RULESET_DIR": str(root),
+                    "RULESET_GENERATED_DIR": str(root / "generated"),
+                    "RULESET_ALLOW_GENERATED": "false",
+                },
+            ):
+                resolve_ruleset_profile.cache_clear()
+                resolution = resolve_ruleset_profile("제조")
+                self.assertEqual(resolution.profile.profile_source, "industry")
+                self.assertEqual(resolution.profile.profile_id, "industry-manufacturing")
 
+    def test_generated_ruleset_enabled_when_flag_true(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td) / "rulesets"
+            (root / "industries").mkdir(parents=True)
+            (root / "generated").mkdir(parents=True)
+            (root / "base.yaml").write_text(json.dumps(_payload("base")), encoding="utf-8")
+            (root / "industries" / "manufacturing.yaml").write_text(
+                json.dumps(_payload("industry-manufacturing")),
+                encoding="utf-8",
+            )
+            (root / "generated" / "manufacturing.yaml").write_text(
+                json.dumps(_payload("generated-manufacturing")),
+                encoding="utf-8",
+            )
             with patch.dict(
                 os.environ,
                 {
@@ -89,25 +115,9 @@ class RulesetLoaderTests(unittest.TestCase):
                 resolve_ruleset_profile.cache_clear()
                 resolution = resolve_ruleset_profile("제조")
                 self.assertEqual(resolution.profile.profile_source, "generated")
-                self.assertEqual(resolution.profile.profile_id, "manufacturing-generated")
-
-    def test_base_profile_used_when_industry_is_unknown(self) -> None:
-        with tempfile.TemporaryDirectory() as td:
-            root = Path(td) / "rulesets"
-            root.mkdir(parents=True)
-            (root / "base.yaml").write_text(json.dumps(_payload("base")), encoding="utf-8")
-            with patch.dict(
-                os.environ,
-                {
-                    "RULESET_DIR": str(root),
-                    "RULESET_GENERATED_DIR": str(root / "generated"),
-                },
-            ):
-                resolve_ruleset_profile.cache_clear()
-                resolution = resolve_ruleset_profile("unknown-industry")
-                self.assertEqual(resolution.profile.profile_source, "base")
-                self.assertIn("INDUSTRY_MAPPING_FALLBACK_TO_BASE", resolution.warnings)
+                self.assertEqual(resolution.profile.profile_id, "generated-manufacturing")
 
 
 if __name__ == "__main__":
     unittest.main()
+

@@ -43,14 +43,26 @@ def _generated_root() -> Path:
     )
 
 
+def _is_true(value: str | None) -> bool:
+    if value is None:
+        return False
+    return value.strip().lower() in {"1", "true", "t", "yes", "y", "on"}
+
+
 def _get_path_candidates(canonical_profile: str) -> list[tuple[str, Path]]:
     root = _ruleset_root()
     generated_root = _generated_root()
-    return [
-        ("generated", generated_root / f"{canonical_profile}.yaml"),
-        ("industry", root / "industries" / f"{canonical_profile}.yaml"),
-        ("base", root / "base.yaml"),
-    ]
+    allow_generated = _is_true(os.getenv("RULESET_ALLOW_GENERATED", "false"))
+    candidates: list[tuple[str, Path]] = []
+    if allow_generated:
+        candidates.append(("generated", generated_root / f"{canonical_profile}.yaml"))
+    candidates.extend(
+        [
+            ("industry", root / "industries" / f"{canonical_profile}.yaml"),
+            ("base", root / "base.yaml"),
+        ]
+    )
+    return candidates
 
 
 def _required_top_level_keys() -> set[str]:

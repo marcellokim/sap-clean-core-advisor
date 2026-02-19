@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import csv
+import json
 import sys
 from datetime import date
 from pathlib import Path
@@ -15,6 +16,7 @@ if str(PROJECT_ROOT) not in sys.path:
 
 from services.calibration_engine import evaluate_rows, split_train_holdout
 from services.data_quality import validate_calibration_rows
+from services.industry_filter import filter_rows_by_industry
 from services.ruleset_loader import resolve_ruleset_profile
 
 DEFAULT_DATA_DIR = PROJECT_ROOT / "calibration" / "data"
@@ -35,6 +37,11 @@ def _write_report(path: Path, content: str) -> None:
     path.write_text(content, encoding="utf-8")
 
 
+def _write_json_report(path: Path, payload: dict[str, object]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Backtest ruleset performance.")
     parser.add_argument("--data-dir", default=str(DEFAULT_DATA_DIR))
@@ -44,15 +51,35 @@ def main() -> int:
 
     data_dir = Path(args.data_dir)
     rows = _load_rows(data_dir)
-    quality = validate_calibration_rows(rows)
+    filtered = filter_rows_by_industry(rows, args.industry)
+    target_rows = filtered.rows
+    quality = validate_calibration_rows(target_rows)
+    report_name = f"backtest_{date.today().strftime('%Y%m%d')}"
+    report_path = Path(args.report_dir) / f"{report_name}.md"
+    json_path = Path(args.report_dir) / f"{report_name}.json"
 
     report_lines = [
         f"# Backtest Report ({date.today().isoformat()})",
         "",
         f"- Industry: {args.industry}",
-        f"- Total rows: {len(rows)}",
+        f"- Target profile: {filtered.target_profile}",
+        f"- Total rows: {filtered.total_rows}",
+        f"- Matched rows: {filtered.matched_rows}",
+        f"- Excluded rows: {filtered.excluded_rows}",
         f"- Accepted rows: {quality.accepted_rows}",
     ]
+
+    json_payload: dict[str, object] = {
+        "date": date.today().isoformat(),
+        "industry_input": args.industry,
+        "target_profile": filtered.target_profile,
+        "total_rows": filtered.total_rows,
+        "matched_rows": filtered.matched_rows,
+        "excluded_rows": filtered.excluded_rows,
+        "accepted_rows": quality.accepted_rows,
+        "quality_warnings": quality.warnings,
+        "quality_errors": quality.errors,
+    }
 
     if quality.warnings:
         report_lines.append("")
@@ -63,14 +90,13 @@ def main() -> int:
         report_lines.append("")
         report_lines.append("## Quality Errors")
         report_lines.extend(f"- {e}" for e in quality.errors)
-        report_name = f"backtest_{date.today().strftime('%Y%m%d')}.md"
-        report_path = Path(args.report_dir) / report_name
         _write_report(report_path, "\n".join(report_lines))
+        _write_json_report(json_path, json_payload)
         print(f"Backtest skipped due to quality errors. Report: {report_path}")
         return 1
 
     resolution = resolve_ruleset_profile(args.industry)
-    train_rows, holdout_rows = split_train_holdout(rows)
+    train_rows, holdout_rows = split_train_holdout(target_rows)
     train_metrics = evaluate_rows(train_rows, resolution.profile)
     holdout_metrics = evaluate_rows(holdout_rows, resolution.profile) if holdout_rows else train_metrics
 
@@ -89,10 +115,24 @@ def main() -> int:
             f"- Holdout Risk Agreement: {holdout_metrics.risk_agreement:.4f}",
         ]
     )
+    json_payload.update(
+        {
+            "profile": {
+                "profile_id": resolution.profile.profile_id,
+                "profile_source": resolution.profile.profile_source,
+                "ruleset_version": resolution.profile.ruleset_version,
+            },
+            "metrics": {
+                "train_mape_tco": train_metrics.mape_tco,
+                "train_risk_agreement": train_metrics.risk_agreement,
+                "holdout_mape_tco": holdout_metrics.mape_tco,
+                "holdout_risk_agreement": holdout_metrics.risk_agreement,
+            },
+        }
+    )
 
-    report_name = f"backtest_{date.today().strftime('%Y%m%d')}.md"
-    report_path = Path(args.report_dir) / report_name
     _write_report(report_path, "\n".join(report_lines))
+    _write_json_report(json_path, json_payload)
     print(f"Backtest completed. Report: {report_path}")
     return 0
 

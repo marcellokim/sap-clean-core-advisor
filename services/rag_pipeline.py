@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import hashlib
 import os
+import warnings
 from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
@@ -20,6 +21,11 @@ from langchain_text_splitters import RecursiveCharacterTextSplitter
 try:
     from langchain_huggingface import HuggingFaceEmbeddings
 except ImportError:  # pragma: no cover - compatibility fallback
+    warnings.filterwarnings(
+        "ignore",
+        message="The class `HuggingFaceEmbeddings` was deprecated in LangChain",
+        category=Warning,
+    )
     from langchain_community.embeddings import HuggingFaceEmbeddings
 
 # ────────────────────────────────────────────────────────────────────

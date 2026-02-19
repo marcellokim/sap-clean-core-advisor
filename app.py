@@ -11,11 +11,19 @@ from pathlib import Path
 import streamlit as st
 
 from models.schemas import CustomerInput
-from services.analysis_service import analyze_customer_input
+from services.analysis_service import AnalysisPolicy, run_analysis
+from services.rag_pipeline import build_vector_store
 from ui.dashboard import render_dashboard
 from ui.input_form import render_input_form
 
 DOCS_ROOT = Path(__file__).resolve().parent / "docs"
+LOGO_PATH = Path(__file__).resolve().parent / "data" / "assets" / "sap_logo.svg"
+
+
+def _is_true(value: str | None) -> bool:
+    if value is None:
+        return False
+    return value.strip().lower() in {"1", "true", "t", "yes", "y", "on"}
 
 
 def _build_support_pack_zip(language_mode: str) -> bytes:
@@ -60,10 +68,10 @@ st.set_page_config(
 # 사이드바
 # ────────────────────────────────────────────────────────────────────
 with st.sidebar:
-    st.image(
-        "https://upload.wikimedia.org/wikipedia/commons/5/59/SAP_2011_logo.svg",
-        width=120,
-    )
+    if LOGO_PATH.exists():
+        st.image(str(LOGO_PATH), width=120)
+    else:
+        st.markdown("### SAP")
     st.markdown("## RISE with SAP")
     st.markdown("### Clean Core Assessment\n& TCO Simulator")
     st.divider()
@@ -81,6 +89,17 @@ with st.sidebar:
         - 💹 TCO 절감 효과를 숫자로 증명
         - 📄 임원 보고용 EA Cookbook 즉시 생성
         """
+    )
+    st.divider()
+    selected_mode = st.selectbox(
+        "Analysis Mode",
+        options=["deterministic", "hybrid", "llm_only"],
+        index=0,
+        help=(
+            "deterministic: 규칙 기반만 실행\n"
+            "hybrid: 규칙+RAG+LLM 시도 후 폴백\n"
+            "llm_only: 데모/실험용 모드"
+        ),
     )
     st.divider()
     pack_lang = st.selectbox(
@@ -109,6 +128,13 @@ with st.sidebar:
 # ────────────────────────────────────────────────────────────────────
 def main() -> None:
     """메인 앱 플로우."""
+    if _is_true(os.getenv("RAG_WARMUP_ON_START", "false")):
+        try:
+            build_vector_store()
+        except Exception:
+            # warm-up 실패는 치명 오류로 취급하지 않음
+            pass
+
     st.markdown(
         "<h1 style='text-align:center;'>🏗️ RISE with SAP: Clean Core Assessment</h1>"
         "<p style='text-align:center; color:gray;'>"
@@ -136,7 +162,8 @@ def main() -> None:
     # ── 분석 실행 ──
     with st.spinner("🔄 AI가 SAP Clean Core 분석을 수행하고 있습니다... (약 30-60초 소요)"):
         try:
-            analysis_result = analyze_customer_input(customer_input)
+            policy = AnalysisPolicy.from_env(analysis_mode=selected_mode)
+            analysis_result = run_analysis(customer_input, policy=policy)
             output = analysis_result.output
             pdf_bytes = analysis_result.pdf_bytes
         except Exception as e:

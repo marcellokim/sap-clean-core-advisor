@@ -17,3 +17,9 @@ data/chroma_db/
 
 # HuggingFace 모델 캐시
 .cache/
+
+# Calibration/runtime artifacts
+calibration/reports/*.md
+calibration/reports/*.json
+config/rulesets/generated/*.yaml
+artifacts/analysis/*.json

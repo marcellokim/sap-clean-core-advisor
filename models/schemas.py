@@ -111,6 +111,22 @@ class AdvisorOutput(BaseModel):
     analysis_id: str = Field(
         description="분석 추적 ID",
     )
+    analysis_mode: Literal["deterministic", "hybrid", "llm_only"] = Field(
+        default="deterministic",
+        description="실행 모드(deterministic/hybrid/llm_only)",
+    )
+    rag_status: Literal["ok", "failed", "skipped"] = Field(
+        default="skipped",
+        description="RAG 단계 상태",
+    )
+    llm_status: Literal["ok", "fallback", "skipped"] = Field(
+        default="skipped",
+        description="LLM 단계 상태",
+    )
+    pdf_status: Literal["ok", "failed"] = Field(
+        default="failed",
+        description="PDF 생성 상태",
+    )
     ruleset_version: str = Field(
         default="",
         description="규칙 엔진 버전 (예: 2026.02.14.v1)",

@@ -75,6 +75,15 @@ uv run streamlit run app.py
 ./.venv/bin/python -m unittest discover -s tests -v
 ```
 
+### Make Commands
+```bash
+make run
+make test
+make verify-sources
+make backtest INDUSTRY=manufacturing
+make calibrate INDUSTRY=manufacturing
+```
+
 ---
 
 ## 3. Core Design Principles
@@ -98,28 +107,61 @@ uv run streamlit run app.py
 
 ```text
 Input Form
+ -> Analysis Policy Resolver (deterministic | hybrid | llm_only)
  -> Industry Mapper (alias normalization)
- -> Ruleset Loader (generated > industry > base)
+ -> Ruleset Loader (generated opt-in > industry > base)
  -> Deterministic Calculator (Score/TCO/Risk)
- -> RAG (soft-fail)
- -> LLM (optional, soft-fail)
- -> Fallback report
+ -> RAG (policy + circuit breaker + soft-fail)
+ -> LLM (policy + circuit breaker + soft-fail)
+ -> Fallback report (always available)
  -> Evidence Ledger (Rule ↔ Source link)
  -> PDF generation (soft-fail)
- -> Dashboard / Download
+ -> Dashboard / Download / Artifact(JSON optional)
 ```
 
 ### Key Files
 - `/Users/ydmac/Documents/sap-clean-core-advisor/services/analysis_service.py`
+- `/Users/ydmac/Documents/sap-clean-core-advisor/services/application/analysis_runner.py`
+- `/Users/ydmac/Documents/sap-clean-core-advisor/services/domain/recommendation_engine.py`
+- `/Users/ydmac/Documents/sap-clean-core-advisor/services/domain/evidence_engine.py`
+- `/Users/ydmac/Documents/sap-clean-core-advisor/services/domain/validation_engine.py`
+- `/Users/ydmac/Documents/sap-clean-core-advisor/services/infrastructure/policy/circuit_breaker.py`
+- `/Users/ydmac/Documents/sap-clean-core-advisor/services/infrastructure/llm/gemini_provider.py`
+- `/Users/ydmac/Documents/sap-clean-core-advisor/services/infrastructure/rag/chroma_provider.py`
+- `/Users/ydmac/Documents/sap-clean-core-advisor/services/infrastructure/pdf/fpdf_renderer.py`
 - `/Users/ydmac/Documents/sap-clean-core-advisor/services/cost_calculator.py`
 - `/Users/ydmac/Documents/sap-clean-core-advisor/services/llm_cost.py`
 - `/Users/ydmac/Documents/sap-clean-core-advisor/services/ruleset_loader.py`
 - `/Users/ydmac/Documents/sap-clean-core-advisor/services/industry_mapper.py`
 - `/Users/ydmac/Documents/sap-clean-core-advisor/services/reference_mapper.py`
 
+### Public Python API
+- `analyze_customer_input(customer_input)` (기존 호환)
+- `run_analysis(customer_input, policy: AnalysisPolicy)`
+- `AnalysisPolicy(analysis_mode, rag_enabled, llm_enabled, timeout_ms, use_circuit_breaker)`
+
 ---
 
-## 5. Deterministic Calculation Policy
+## 5. Execution Policy & Circuit Breaker
+
+### Analysis Mode
+- `deterministic` (default): calc/evidence/pdf만 수행, RAG/LLM 스킵
+- `hybrid`: calc + RAG + LLM 시도, 실패 시 자동 fallback
+- `llm_only`: 데모/실험용, LLM 실패 시 fallback 허용
+
+### Stage Status
+- `rag_status`: `ok | failed | skipped`
+- `llm_status`: `ok | fallback | skipped`
+- `pdf_status`: `ok | failed`
+
+### Circuit Breaker
+- LLM/RAG 각각 독립 breaker 사용
+- 연속 실패 임계치 도달 시 Open
+- Open 기간 동안 즉시 스킵하여 재시도 지연 제거
+
+---
+
+## 6. Deterministic Calculation Policy
 
 ### Score/TCO/Risk
 - Ruleset 설정 기반 계산
@@ -139,7 +181,7 @@ Input Form
 
 ---
 
-## 6. Evidence Ledger
+## 7. Evidence Ledger
 
 각 권고사항에 대해 아래 필드를 제공합니다.
 - `claim_id`
@@ -158,7 +200,7 @@ Input Form
 
 ---
 
-## 7. Industry Ruleset & Calibration
+## 8. Industry Ruleset & Calibration
 
 ### Ruleset Files
 - `/Users/ydmac/Documents/sap-clean-core-advisor/config/rulesets/base.yaml`
@@ -166,6 +208,10 @@ Input Form
 - `/Users/ydmac/Documents/sap-clean-core-advisor/config/rulesets/industries/retail.yaml`
 - `/Users/ydmac/Documents/sap-clean-core-advisor/config/rulesets/industries/finance.yaml`
 - `/Users/ydmac/Documents/sap-clean-core-advisor/config/rulesets/generated/`
+
+### Generated Ruleset Activation Policy
+- 기본값: `RULESET_ALLOW_GENERATED=false`
+- 명시적으로 활성화할 때만 generated ruleset 우선 적용
 
 ### Data Quality Gate
 - `/Users/ydmac/Documents/sap-clean-core-advisor/services/data_quality.py`
@@ -181,10 +227,16 @@ Input Form
 출력:
 - `/Users/ydmac/Documents/sap-clean-core-advisor/calibration/reports/`
 - `/Users/ydmac/Documents/sap-clean-core-advisor/config/rulesets/generated/{industry}.yaml`
+- `backtest_YYYYMMDD.md + backtest_YYYYMMDD.json`
+- `calibration_YYYYMMDD.md + calibration_YYYYMMDD.json`
+
+주의:
+- 입력 CSV는 `industry_mapper` 기준 canonical profile로 필터링 후 평가됩니다.
+- mismatch row 개수(`excluded_rows`)가 리포트에 기록됩니다.
 
 ---
 
-## 8. Source Governance
+## 9. Source Governance
 
 ### Source Catalog
 - `/Users/ydmac/Documents/sap-clean-core-advisor/docs/sources.yaml`
@@ -205,7 +257,7 @@ Input Form
 
 ---
 
-## 9. Failure Modes & Mitigation
+## 10. Failure Modes & Mitigation
 
 1. LLM quota/rate limit
 - `ERR_LLM_RATE_LIMIT`로 분류
@@ -220,13 +272,14 @@ Input Form
 
 4. RAG 실패
 - `ERR_RAG_UNAVAILABLE`, 분석 지속
+- `RAG_OFFLINE_ALLOW=true`일 때 soft-fail
 
 5. PDF 실패
 - `ERR_PDF_*`, 화면 결과 유지
 
 ---
 
-## 10. LLM Usage & Cost Estimator
+## 11. LLM Usage & Cost Estimator
 
 - 출력 메타에 `llm_usage_source`, `llm_usage_tokens`, `llm_cost_estimate_usd`, `llm_monthly_projection_usd`를 기록합니다.
 - Provider usage 메타가 있으면 실제 토큰(`provider`)을 사용합니다.
@@ -235,26 +288,40 @@ Input Form
 
 ---
 
-## 11. Environment Variables
+## 12. Environment Variables
 
 ```bash
+# Analysis runtime policy
+ANALYSIS_MODE=deterministic
+ANALYSIS_TIMEOUT_MS=0
+ANALYSIS_USE_CIRCUIT_BREAKER=true
+ANALYSIS_ARTIFACTS_ENABLE=false
+
 # LLM
 LLM_PROVIDER=gemini
 LLM_PIPELINE_MODE=single
 LLM_MAX_RETRIES=2
 LLM_BASE_DELAY_SEC=5
 LLM_DISABLE=false
+LLM_CB_FAILURE_THRESHOLD=3
+LLM_CB_OPEN_SEC=120
 LLM_PRICE_INPUT_PER_1M=0.075
 LLM_PRICE_OUTPUT_PER_1M=0.30
 LLM_MONTHLY_REQUESTS=1000
 LLM_TOKEN_ESTIMATE_CHAR_DIVISOR=4
 
 # RAG
+RAG_ENABLE=true
+RAG_OFFLINE_ALLOW=true
+RAG_WARMUP_ON_START=false
 RAG_MAX_CONTEXT_CHARS=6000
+RAG_CB_FAILURE_THRESHOLD=3
+RAG_CB_OPEN_SEC=120
 
 # Ruleset/Calibration
 RULESET_DIR=config/rulesets
 RULESET_GENERATED_DIR=config/rulesets/generated
+RULESET_ALLOW_GENERATED=false
 CALIBRATION_MIN_SAMPLES=20
 CALIBRATION_WEIGHT_TCO=0.7
 CALIBRATION_WEIGHT_RISK=0.3
@@ -265,7 +332,7 @@ SOURCE_VERIFY_MAX_AGE_DAYS=90
 
 ---
 
-## 12. CSV Data Contract (Calibration)
+## 13. CSV Data Contract (Calibration)
 필수 컬럼:
 - `company_id`
 - `industry`
@@ -284,12 +351,16 @@ SOURCE_VERIFY_MAX_AGE_DAYS=90
 
 ---
 
-## 13. Tests
+## 14. Tests
 
-신규 테스트 포함 전체 30개 통과 기준:
+신규 테스트 포함 전체 38개 통과 기준:
 - industry mapper
 - ruleset loader precedence
+- ruleset activation guard
 - data quality gate
+- analysis policy mode matrix
+- circuit breaker
+- industry-filtered calibration
 - rule ↔ source mapping completeness
 - source catalog schema/staleness
 - analysis fallback/llm flow
@@ -302,7 +373,7 @@ SOURCE_VERIFY_MAX_AGE_DAYS=90
 
 ---
 
-## 14. References (as of 2026-02-19)
+## 15. References (as of 2026-02-19)
 
 ### Official
 - [Gemini API Rate Limits](https://ai.google.dev/gemini-api/docs/rate-limits)

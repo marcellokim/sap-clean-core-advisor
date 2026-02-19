@@ -41,7 +41,11 @@ class AnalysisServiceTests(unittest.TestCase):
     def setUp(self) -> None:
         self._tmp_dir = tempfile.TemporaryDirectory()
         self._old_generated = os.environ.get("RULESET_GENERATED_DIR")
+        self._old_generated_flag = os.environ.get("RULESET_ALLOW_GENERATED")
+        self._old_mode = os.environ.get("ANALYSIS_MODE")
         os.environ["RULESET_GENERATED_DIR"] = self._tmp_dir.name
+        os.environ["RULESET_ALLOW_GENERATED"] = "false"
+        os.environ["ANALYSIS_MODE"] = "hybrid"
         resolve_ruleset_profile.cache_clear()
 
     def tearDown(self) -> None:
@@ -49,12 +53,20 @@ class AnalysisServiceTests(unittest.TestCase):
             os.environ.pop("RULESET_GENERATED_DIR", None)
         else:
             os.environ["RULESET_GENERATED_DIR"] = self._old_generated
+        if self._old_generated_flag is None:
+            os.environ.pop("RULESET_ALLOW_GENERATED", None)
+        else:
+            os.environ["RULESET_ALLOW_GENERATED"] = self._old_generated_flag
+        if self._old_mode is None:
+            os.environ.pop("ANALYSIS_MODE", None)
+        else:
+            os.environ["ANALYSIS_MODE"] = self._old_mode
         resolve_ruleset_profile.cache_clear()
         self._tmp_dir.cleanup()
 
-    @patch("services.analysis_service.generate_pdf", return_value=b"%PDF-test")
+    @patch("services.application.analysis_runner.FPDFRenderer.render", return_value=b"%PDF-test")
     @patch(
-        "services.analysis_service.get_context_bundle_for_input",
+        "services.application.analysis_runner.ChromaRAGProvider.get_context_bundle",
         return_value=RAGContextBundle(
             context="[출처: x]\n테스트 컨텍스트",
             sources=["x"],
@@ -62,7 +74,7 @@ class AnalysisServiceTests(unittest.TestCase):
         ),
     )
     @patch(
-        "services.llm_engine.GeminiReportProvider.generate_report",
+        "services.application.analysis_runner.GeminiLLMProvider.generate_report",
         side_effect=LLMProviderError(ERR_LLM_RATE_LIMIT, "429"),
     )
     def test_fallback_mode_on_rate_limit(
@@ -88,9 +100,9 @@ class AnalysisServiceTests(unittest.TestCase):
         self.assertIn("1000_runs", result.output.llm_monthly_projection_usd)
         self.assertIsNotNone(result.pdf_bytes)
 
-    @patch("services.analysis_service.generate_pdf", return_value=b"%PDF-test")
+    @patch("services.application.analysis_runner.FPDFRenderer.render", return_value=b"%PDF-test")
     @patch(
-        "services.analysis_service.get_context_bundle_for_input",
+        "services.application.analysis_runner.ChromaRAGProvider.get_context_bundle",
         return_value=RAGContextBundle(
             context="[출처: x]\n테스트 컨텍스트",
             sources=["x"],
@@ -98,7 +110,7 @@ class AnalysisServiceTests(unittest.TestCase):
         ),
     )
     @patch(
-        "services.llm_engine.GeminiReportProvider.generate_report",
+        "services.application.analysis_runner.GeminiLLMProvider.generate_report",
         return_value=ReportSections(
             executive_summary="LLM EXEC",
             detailed_report="LLM DETAIL",
@@ -120,9 +132,9 @@ class AnalysisServiceTests(unittest.TestCase):
         self.assertGreater(result.output.llm_usage_tokens.get("total_tokens", 0), 0)
         self.assertGreaterEqual(result.output.llm_cost_estimate_usd, 0.0)
 
-    @patch("services.analysis_service.generate_pdf", return_value=b"%PDF-test")
+    @patch("services.application.analysis_runner.FPDFRenderer.render", return_value=b"%PDF-test")
     @patch(
-        "services.analysis_service.get_context_bundle_for_input",
+        "services.application.analysis_runner.ChromaRAGProvider.get_context_bundle",
         return_value=RAGContextBundle(
             context="",
             sources=[],
@@ -130,7 +142,7 @@ class AnalysisServiceTests(unittest.TestCase):
         ),
     )
     @patch(
-        "services.llm_engine.GeminiReportProvider.generate_report",
+        "services.application.analysis_runner.GeminiLLMProvider.generate_report",
         side_effect=LLMProviderError(ERR_LLM_RATE_LIMIT, "429"),
     )
     def test_unknown_industry_uses_base_profile_and_warning(
