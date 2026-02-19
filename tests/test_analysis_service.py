@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import os
+import tempfile
 import unittest
 from unittest.mock import patch
 
@@ -10,6 +12,7 @@ from services.analysis_service import analyze_customer_input
 from services.error_codes import ERR_LLM_RATE_LIMIT
 from services.llm_provider import LLMProviderError, ReportSections
 from services.rag_pipeline import RAGContextBundle
+from services.ruleset_loader import resolve_ruleset_profile
 
 
 def _sample_input(industry: str = "제조") -> CustomerInput:
@@ -35,6 +38,20 @@ def _sample_input(industry: str = "제조") -> CustomerInput:
 
 
 class AnalysisServiceTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self._tmp_dir = tempfile.TemporaryDirectory()
+        self._old_generated = os.environ.get("RULESET_GENERATED_DIR")
+        os.environ["RULESET_GENERATED_DIR"] = self._tmp_dir.name
+        resolve_ruleset_profile.cache_clear()
+
+    def tearDown(self) -> None:
+        if self._old_generated is None:
+            os.environ.pop("RULESET_GENERATED_DIR", None)
+        else:
+            os.environ["RULESET_GENERATED_DIR"] = self._old_generated
+        resolve_ruleset_profile.cache_clear()
+        self._tmp_dir.cleanup()
+
     @patch("services.analysis_service.generate_pdf", return_value=b"%PDF-test")
     @patch(
         "services.analysis_service.get_context_bundle_for_input",
@@ -65,6 +82,10 @@ class AnalysisServiceTests(unittest.TestCase):
         self.assertIn("calc_ms", result.output.stage_metrics_ms)
         self.assertIn("total_ms", result.output.stage_metrics_ms)
         self.assertTrue(result.output.executive_summary)
+        self.assertEqual(result.output.llm_usage_source, "estimated")
+        self.assertGreater(result.output.llm_usage_tokens.get("total_tokens", 0), 0)
+        self.assertGreaterEqual(result.output.llm_cost_estimate_usd, 0.0)
+        self.assertIn("1000_runs", result.output.llm_monthly_projection_usd)
         self.assertIsNotNone(result.pdf_bytes)
 
     @patch("services.analysis_service.generate_pdf", return_value=b"%PDF-test")
@@ -96,6 +117,8 @@ class AnalysisServiceTests(unittest.TestCase):
         self.assertEqual(result.output.detailed_report, "LLM DETAIL")
         self.assertTrue(result.output.evidence_ledger)
         self.assertIn("llm_ms", result.output.stage_metrics_ms)
+        self.assertGreater(result.output.llm_usage_tokens.get("total_tokens", 0), 0)
+        self.assertGreaterEqual(result.output.llm_cost_estimate_usd, 0.0)
 
     @patch("services.analysis_service.generate_pdf", return_value=b"%PDF-test")
     @patch(

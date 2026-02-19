@@ -23,8 +23,13 @@ from services.error_codes import (
     ERR_PROVIDER_NOT_SUPPORTED,
     ERR_RAG_UNAVAILABLE,
 )
+from services.llm_cost import (
+    build_monthly_projection,
+    estimate_cost_usd,
+    estimate_usage_from_payload,
+)
 from services.llm_engine import GeminiReportProvider
-from services.llm_provider import LLMProviderError, ReportPayload, ReportSections
+from services.llm_provider import LLMProviderError, LLMUsage, ReportPayload, ReportSections
 from services.pdf_generator import generate_pdf
 from services.rag_pipeline import RAGContextBundle, get_context_bundle_for_input
 from services.reference_mapper import get_reference_source_ids
@@ -496,6 +501,7 @@ def analyze_customer_input(customer_input: CustomerInput) -> AnalysisResult:
     generation_provider = _select_provider_name()
     generation_error_code: str | None = ERR_LLM_DISABLED
     sections = fallback_sections
+    llm_usage = LLMUsage()
 
     llm_start = time.perf_counter()
     llm_disabled = _is_true(os.getenv("LLM_DISABLE", "false"))
@@ -511,6 +517,7 @@ def analyze_customer_input(customer_input: CustomerInput) -> AnalysisResult:
                 sections = provider.generate_report(payload)
                 generation_mode = "llm"
                 generation_error_code = None
+                llm_usage = sections.usage
             except LLMProviderError as e:
                 generation_mode = "fallback"
                 generation_error_code = _normalize_llm_error_code(e.code)
@@ -520,6 +527,14 @@ def analyze_customer_input(customer_input: CustomerInput) -> AnalysisResult:
                 generation_error_code = ERR_LLM_PROVIDER
                 logger.warning("Unknown LLM provider failure. Using fallback report: %s", e)
     stage_metrics_ms["llm_ms"] = _elapsed_ms(llm_start)
+
+    if generation_mode != "llm" or llm_usage.total_tokens <= 0:
+        llm_usage = estimate_usage_from_payload(
+            payload,
+            f"{sections.executive_summary}\n\n{sections.detailed_report}",
+        )
+    llm_cost_estimate_usd = estimate_cost_usd(llm_usage)
+    llm_monthly_projection_usd = build_monthly_projection(llm_cost_estimate_usd)
 
     evidence_ledger = _build_evidence_ledger(recommendation_traces, generation_mode, rag_bundle)
     validation_warnings = list(ruleset_resolution.warnings)
@@ -549,6 +564,14 @@ def analyze_customer_input(customer_input: CustomerInput) -> AnalysisResult:
         ruleset_profile_id=calc.ruleset_profile_id,
         ruleset_profile_source=calc.ruleset_profile_source,
         calibration_quality=calc.calibration_quality,
+        llm_usage_source=llm_usage.source,
+        llm_usage_tokens={
+            "prompt_tokens": llm_usage.prompt_tokens,
+            "output_tokens": llm_usage.output_tokens,
+            "total_tokens": llm_usage.total_tokens,
+        },
+        llm_cost_estimate_usd=llm_cost_estimate_usd,
+        llm_monthly_projection_usd=llm_monthly_projection_usd,
         validation_warnings=validation_warnings,
         stage_metrics_ms=stage_metrics_ms,
         evidence_ledger=evidence_ledger,
@@ -581,6 +604,14 @@ def analyze_customer_input(customer_input: CustomerInput) -> AnalysisResult:
                 "ruleset_profile_id": calc.ruleset_profile_id,
                 "ruleset_profile_source": calc.ruleset_profile_source,
                 "calibration_quality": calc.calibration_quality,
+                "llm_usage_source": llm_usage.source,
+                "llm_usage_tokens": {
+                    "prompt_tokens": llm_usage.prompt_tokens,
+                    "output_tokens": llm_usage.output_tokens,
+                    "total_tokens": llm_usage.total_tokens,
+                },
+                "llm_cost_estimate_usd": llm_cost_estimate_usd,
+                "llm_monthly_projection_usd": llm_monthly_projection_usd,
                 "stage_metrics_ms": stage_metrics_ms,
                 "evidence_count": len(evidence_ledger),
             },

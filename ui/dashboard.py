@@ -227,6 +227,25 @@ def render_dashboard(
             f"{key}={value}ms" for key, value in output.stage_metrics_ms.items()
         )
         st.caption(f"stage_metrics: {metrics_text}")
+    if output.llm_usage_tokens:
+        usage = output.llm_usage_tokens
+        st.caption(
+            "llm_usage: "
+            f"source={output.llm_usage_source}, "
+            f"prompt={usage.get('prompt_tokens', 0)}, "
+            f"output={usage.get('output_tokens', 0)}, "
+            f"total={usage.get('total_tokens', 0)}"
+        )
+        st.caption(f"llm_cost_per_run_estimate: ${output.llm_cost_estimate_usd:.8f}")
+    if output.llm_monthly_projection_usd:
+        top_projection_keys = [k for k in ("1000_runs", "10000_runs") if k in output.llm_monthly_projection_usd]
+        if not top_projection_keys:
+            top_projection_keys = sorted(output.llm_monthly_projection_usd.keys())[:2]
+        projection_text = ", ".join(
+            f"{key}=${output.llm_monthly_projection_usd[key]:.6f}"
+            for key in top_projection_keys
+        )
+        st.caption(f"llm_monthly_projection: {projection_text}")
 
     # ── 핵심 KPI 카드 ──
     kpi1, kpi2, kpi3, kpi4 = st.columns(4)

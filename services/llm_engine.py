@@ -9,12 +9,16 @@ from typing import Any
 
 from dotenv import load_dotenv
 from langchain_google_genai import ChatGoogleGenerativeAI
-from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.runnables import Runnable
 
 from services.error_codes import ERR_LLM_AUTH, ERR_LLM_PROVIDER, ERR_LLM_RATE_LIMIT
-from services.llm_provider import LLMProviderError, ReportPayload, ReportSections
+from services.llm_cost import (
+    estimate_usage_from_inputs,
+    estimate_usage_from_payload,
+    normalize_usage_metadata,
+)
+from services.llm_provider import LLMProviderError, LLMUsage, ReportPayload, ReportSections
 
 load_dotenv()
 logger = logging.getLogger(__name__)
@@ -63,6 +67,48 @@ def _split_report(report: str) -> ReportSections:
         executive_summary=report[:500].strip() + "...",
         detailed_report=report.strip(),
     )
+
+
+def _content_to_text(content: Any) -> str:
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        blocks: list[str] = []
+        for block in content:
+            if isinstance(block, str):
+                blocks.append(block)
+            elif isinstance(block, dict):
+                text = block.get("text")
+                if isinstance(text, str):
+                    blocks.append(text)
+        return "\n".join(part for part in blocks if part)
+    return str(content or "")
+
+
+def _extract_usage_map(response: Any) -> dict[str, Any]:
+    usage_candidates: list[dict[str, Any]] = []
+    direct_usage = getattr(response, "usage_metadata", None)
+    if isinstance(direct_usage, dict):
+        usage_candidates.append(direct_usage)
+
+    response_meta = getattr(response, "response_metadata", None)
+    if isinstance(response_meta, dict):
+        usage_meta = response_meta.get("usage_metadata")
+        if isinstance(usage_meta, dict):
+            usage_candidates.append(usage_meta)
+        token_usage = response_meta.get("token_usage")
+        if isinstance(token_usage, dict):
+            usage_candidates.append(token_usage)
+
+    for usage in usage_candidates:
+        normalized = normalize_usage_metadata(usage)
+        if normalized.total_tokens > 0:
+            return {
+                "prompt_tokens": normalized.prompt_tokens,
+                "output_tokens": normalized.output_tokens,
+                "total_tokens": normalized.total_tokens,
+            }
+    return {}
 
 
 ANALYST_SYSTEM = """\
@@ -222,9 +268,8 @@ class GeminiReportProvider:
             temperature=0.3,
             max_output_tokens=max_output_tokens,
         )
-        self._parser = StrOutputParser()
 
-    def _invoke_with_retry(self, chain: Runnable, inputs: dict[str, Any]) -> str:
+    def _invoke_with_retry(self, chain: Runnable, inputs: dict[str, Any]) -> Any:
         for attempt in range(self._max_retries + 1):
             try:
                 return chain.invoke(inputs)
@@ -246,13 +291,32 @@ class GeminiReportProvider:
                 raise LLMProviderError(ERR_LLM_PROVIDER, str(e))
         raise LLMProviderError(ERR_LLM_PROVIDER, "Unexpected provider failure")
 
+    def _invoke_text_with_usage(self, chain: Runnable, inputs: dict[str, Any]) -> tuple[str, LLMUsage]:
+        response = self._invoke_with_retry(chain, inputs)
+        text = _content_to_text(getattr(response, "content", response))
+
+        normalized_usage = normalize_usage_metadata(_extract_usage_map(response))
+        if normalized_usage.total_tokens > 0:
+            return (
+                text,
+                LLMUsage(
+                    prompt_tokens=normalized_usage.prompt_tokens,
+                    output_tokens=normalized_usage.output_tokens,
+                    total_tokens=normalized_usage.total_tokens,
+                    source="provider",
+                ),
+            )
+
+        estimated_usage = estimate_usage_from_inputs(inputs, text)
+        return (text, estimated_usage)
+
     def _generate_single_pass(self, payload: ReportPayload) -> ReportSections:
         single_prompt = ChatPromptTemplate.from_messages([
             ("system", SINGLE_PASS_SYSTEM),
             ("human", "위 정보를 종합하여 최종 보고서를 작성해 주세요."),
         ])
-        chain = single_prompt | self._llm | self._parser
-        report = self._invoke_with_retry(chain, {
+        chain = single_prompt | self._llm
+        inputs = {
             "customer_info": payload.customer_info,
             "clean_core_score": payload.clean_core_score,
             "score_breakdown": payload.score_breakdown,
@@ -264,16 +328,25 @@ class GeminiReportProvider:
             "tech_debt": payload.tech_debt,
             "recommendations": "\n".join(f"- {r}" for r in payload.recommendations),
             "rag_context": payload.rag_context,
-        })
-        return _split_report(report)
+        }
+        report, usage = self._invoke_text_with_usage(chain, inputs)
+        sections = _split_report(report)
+        if usage.total_tokens <= 0:
+            fallback_usage = estimate_usage_from_payload(payload, report)
+            usage = fallback_usage
+        return ReportSections(
+            executive_summary=sections.executive_summary,
+            detailed_report=sections.detailed_report,
+            usage=usage,
+        )
 
     def _generate_three_chain(self, payload: ReportPayload) -> ReportSections:
         analyst_prompt = ChatPromptTemplate.from_messages([
             ("system", ANALYST_SYSTEM),
             ("human", "위 정보를 바탕으로 현재 시스템의 핵심 문제점을 진단해 주세요."),
         ])
-        analyst_chain = analyst_prompt | self._llm | self._parser
-        analysis = self._invoke_with_retry(analyst_chain, {
+        analyst_chain = analyst_prompt | self._llm
+        analysis_inputs = {
             "customer_info": payload.customer_info,
             "clean_core_score": payload.clean_core_score,
             "score_breakdown": payload.score_breakdown,
@@ -281,7 +354,8 @@ class GeminiReportProvider:
             "tech_debt": payload.tech_debt,
             "risk_level": payload.risk_level,
             "risk_factors": "\n".join(f"- {r}" for r in payload.risk_factors),
-        })
+        }
+        analysis, usage_analyst = self._invoke_text_with_usage(analyst_chain, analysis_inputs)
 
         time.sleep(self._delay_between_chains)
 
@@ -289,12 +363,16 @@ class GeminiReportProvider:
             ("system", ARCHITECT_SYSTEM),
             ("human", "위 진단 결과와 SAP 공식 가이드를 참고하여 전환 전략을 수립해 주세요."),
         ])
-        architect_chain = architect_prompt | self._llm | self._parser
-        architecture = self._invoke_with_retry(architect_chain, {
+        architect_chain = architect_prompt | self._llm
+        architecture_inputs = {
             "analysis": analysis,
             "rag_context": payload.rag_context,
             "customer_info": payload.customer_info,
-        })
+        }
+        architecture, usage_architect = self._invoke_text_with_usage(
+            architect_chain,
+            architecture_inputs,
+        )
 
         time.sleep(self._delay_between_chains)
 
@@ -302,8 +380,8 @@ class GeminiReportProvider:
             ("system", REPORTER_SYSTEM),
             ("human", "위 모든 분석을 종합하여 Executive Summary와 상세 리포트를 작성해 주세요."),
         ])
-        reporter_chain = reporter_prompt | self._llm | self._parser
-        report = self._invoke_with_retry(reporter_chain, {
+        reporter_chain = reporter_prompt | self._llm
+        report_inputs = {
             "customer_info": payload.customer_info,
             "analysis": analysis,
             "architecture": architecture,
@@ -311,8 +389,40 @@ class GeminiReportProvider:
             "current_tco": payload.current_tco,
             "projected_tco": payload.projected_tco,
             "savings_3yr": payload.savings_3yr,
-        })
-        return _split_report(report)
+        }
+        report, usage_reporter = self._invoke_text_with_usage(reporter_chain, report_inputs)
+        sections = _split_report(report)
+
+        total_usage = LLMUsage(
+            prompt_tokens=(
+                usage_analyst.prompt_tokens
+                + usage_architect.prompt_tokens
+                + usage_reporter.prompt_tokens
+            ),
+            output_tokens=(
+                usage_analyst.output_tokens
+                + usage_architect.output_tokens
+                + usage_reporter.output_tokens
+            ),
+            total_tokens=(
+                usage_analyst.total_tokens
+                + usage_architect.total_tokens
+                + usage_reporter.total_tokens
+            ),
+            source=(
+                "provider"
+                if all(u.source == "provider" for u in (usage_analyst, usage_architect, usage_reporter))
+                else "estimated"
+            ),
+        )
+        if total_usage.total_tokens <= 0:
+            total_usage = estimate_usage_from_payload(payload, report)
+
+        return ReportSections(
+            executive_summary=sections.executive_summary,
+            detailed_report=sections.detailed_report,
+            usage=total_usage,
+        )
 
     def generate_report(self, payload: ReportPayload) -> ReportSections:
         if self._pipeline_mode == "three_chain":

@@ -112,6 +112,7 @@ Input Form
 ### Key Files
 - `/Users/ydmac/Documents/sap-clean-core-advisor/services/analysis_service.py`
 - `/Users/ydmac/Documents/sap-clean-core-advisor/services/cost_calculator.py`
+- `/Users/ydmac/Documents/sap-clean-core-advisor/services/llm_cost.py`
 - `/Users/ydmac/Documents/sap-clean-core-advisor/services/ruleset_loader.py`
 - `/Users/ydmac/Documents/sap-clean-core-advisor/services/industry_mapper.py`
 - `/Users/ydmac/Documents/sap-clean-core-advisor/services/reference_mapper.py`
@@ -225,7 +226,16 @@ Input Form
 
 ---
 
-## 10. Environment Variables
+## 10. LLM Usage & Cost Estimator
+
+- 출력 메타에 `llm_usage_source`, `llm_usage_tokens`, `llm_cost_estimate_usd`, `llm_monthly_projection_usd`를 기록합니다.
+- Provider usage 메타가 있으면 실제 토큰(`provider`)을 사용합니다.
+- usage 메타가 없거나 폴백이면 입력/출력 길이 기반 추정(`estimated`)으로 계산합니다.
+- 비용은 모델별 토큰 단가(기본: `gemini-2.0-flash-lite`)를 사용해 1회/월간 시나리오 비용을 계산합니다.
+
+---
+
+## 11. Environment Variables
 
 ```bash
 # LLM
@@ -234,6 +244,10 @@ LLM_PIPELINE_MODE=single
 LLM_MAX_RETRIES=2
 LLM_BASE_DELAY_SEC=5
 LLM_DISABLE=false
+LLM_PRICE_INPUT_PER_1M=0.075
+LLM_PRICE_OUTPUT_PER_1M=0.30
+LLM_MONTHLY_REQUESTS=1000
+LLM_TOKEN_ESTIMATE_CHAR_DIVISOR=4
 
 # RAG
 RAG_MAX_CONTEXT_CHARS=6000
@@ -251,7 +265,7 @@ SOURCE_VERIFY_MAX_AGE_DAYS=90
 
 ---
 
-## 11. CSV Data Contract (Calibration)
+## 12. CSV Data Contract (Calibration)
 필수 컬럼:
 - `company_id`
 - `industry`
@@ -270,9 +284,9 @@ SOURCE_VERIFY_MAX_AGE_DAYS=90
 
 ---
 
-## 12. Tests
+## 13. Tests
 
-신규 테스트 포함 전체 27개 통과 기준:
+신규 테스트 포함 전체 30개 통과 기준:
 - industry mapper
 - ruleset loader precedence
 - data quality gate
@@ -288,7 +302,7 @@ SOURCE_VERIFY_MAX_AGE_DAYS=90
 
 ---
 
-## 13. References (as of 2026-02-16)
+## 14. References (as of 2026-02-19)
 
 ### Official
 - [Gemini API Rate Limits](https://ai.google.dev/gemini-api/docs/rate-limits)

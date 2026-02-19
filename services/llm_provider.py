@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Protocol
 
 
@@ -29,6 +29,17 @@ class ReportSections:
 
     executive_summary: str
     detailed_report: str
+    usage: "LLMUsage" = field(default_factory=lambda: LLMUsage())
+
+
+@dataclass(frozen=True)
+class LLMUsage:
+    """LLM 토큰 사용량 메타."""
+
+    prompt_tokens: int = 0
+    output_tokens: int = 0
+    total_tokens: int = 0
+    source: str = "none"  # provider | estimated | none
 
 
 class LLMProviderError(Exception):
