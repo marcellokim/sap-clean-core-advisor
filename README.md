@@ -66,6 +66,12 @@ cd /Users/ydmac/Documents/sap-clean-core-advisor
 uv run streamlit run app.py
 ```
 
+### Run App with GLM-5
+```bash
+cd /Users/ydmac/Documents/sap-clean-core-advisor
+LLM_PROVIDER=glm GLM_API_KEY=your_key ANALYSIS_MODE=hybrid uv run streamlit run app.py
+```
+
 ### Sidebar Export
 - `EA Support Pack Language` 선택
 - `Download EA Support Pack` 클릭
@@ -127,6 +133,7 @@ Input Form
 - `/Users/ydmac/Documents/sap-clean-core-advisor/services/domain/validation_engine.py`
 - `/Users/ydmac/Documents/sap-clean-core-advisor/services/infrastructure/policy/circuit_breaker.py`
 - `/Users/ydmac/Documents/sap-clean-core-advisor/services/infrastructure/llm/gemini_provider.py`
+- `/Users/ydmac/Documents/sap-clean-core-advisor/services/infrastructure/llm/glm_provider.py`
 - `/Users/ydmac/Documents/sap-clean-core-advisor/services/infrastructure/rag/chroma_provider.py`
 - `/Users/ydmac/Documents/sap-clean-core-advisor/services/infrastructure/pdf/fpdf_renderer.py`
 - `/Users/ydmac/Documents/sap-clean-core-advisor/services/cost_calculator.py`
@@ -284,7 +291,7 @@ Input Form
 - 출력 메타에 `llm_usage_source`, `llm_usage_tokens`, `llm_cost_estimate_usd`, `llm_monthly_projection_usd`를 기록합니다.
 - Provider usage 메타가 있으면 실제 토큰(`provider`)을 사용합니다.
 - usage 메타가 없거나 폴백이면 입력/출력 길이 기반 추정(`estimated`)으로 계산합니다.
-- 비용은 모델별 토큰 단가(기본: `gemini-2.0-flash-lite`)를 사용해 1회/월간 시나리오 비용을 계산합니다.
+- 비용은 모델별 토큰 단가(기본: `LLM_MODEL` 또는 provider별 기본 모델)를 사용해 1회/월간 시나리오 비용을 계산합니다.
 
 ---
 
@@ -299,9 +306,11 @@ ANALYSIS_ARTIFACTS_ENABLE=false
 
 # LLM
 LLM_PROVIDER=gemini
+LLM_MODEL=
 LLM_PIPELINE_MODE=single
 LLM_MAX_RETRIES=2
 LLM_BASE_DELAY_SEC=5
+LLM_HTTP_TIMEOUT_SEC=45
 LLM_DISABLE=false
 LLM_CB_FAILURE_THRESHOLD=3
 LLM_CB_OPEN_SEC=120
@@ -309,6 +318,15 @@ LLM_PRICE_INPUT_PER_1M=0.075
 LLM_PRICE_OUTPUT_PER_1M=0.30
 LLM_MONTHLY_REQUESTS=1000
 LLM_TOKEN_ESTIMATE_CHAR_DIVISOR=4
+
+# Gemini
+GOOGLE_API_KEY=
+GEMINI_MODEL=gemini-2.0-flash-lite
+
+# GLM
+GLM_API_KEY=
+GLM_MODEL=glm-5
+GLM_API_BASE_URL=https://open.bigmodel.cn/api/paas/v4
 
 # RAG
 RAG_ENABLE=true

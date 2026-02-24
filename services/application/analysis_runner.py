@@ -11,6 +11,8 @@ from pathlib import Path
 from typing import Literal
 from uuid import uuid4
 
+from dotenv import load_dotenv
+
 from models.schemas import AdvisorOutput, CustomerInput
 from services.cost_calculator import CalculationResult, run_calculation
 from services.domain.evidence_engine import build_evidence_ledger
@@ -32,6 +34,7 @@ from services.error_codes import (
     ERR_RAG_UNAVAILABLE,
 )
 from services.infrastructure.llm.gemini_provider import GeminiLLMProvider
+from services.infrastructure.llm.glm_provider import GLMLLMProvider
 from services.infrastructure.pdf.fpdf_renderer import FPDFRenderer
 from services.infrastructure.policy.circuit_breaker import CircuitBreaker
 from services.infrastructure.rag.chroma_provider import ChromaRAGProvider
@@ -40,11 +43,12 @@ from services.llm_cost import (
     estimate_cost_usd,
     estimate_usage_from_payload,
 )
-from services.llm_provider import LLMProviderError, LLMUsage, ReportPayload, ReportSections
+from services.llm_provider import LLMProvider, LLMProviderError, LLMUsage, ReportPayload, ReportSections
 from services.rag_pipeline import RAGContextBundle
 from services.ruleset_loader import resolve_ruleset_profile
 
 logger = logging.getLogger(__name__)
+load_dotenv()
 
 AnalysisMode = Literal["deterministic", "hybrid", "llm_only"]
 RAGStatus = Literal["ok", "failed", "skipped"]
@@ -141,6 +145,17 @@ def _is_true(value: str | None) -> bool:
 
 def _select_provider_name() -> str:
     return os.getenv("LLM_PROVIDER", "gemini").strip().lower() or "gemini"
+
+
+def _create_llm_provider(provider_name: str) -> LLMProvider:
+    if provider_name == "gemini":
+        return GeminiLLMProvider()
+    if provider_name in {"glm", "glm-5", "zhipu"}:
+        return GLMLLMProvider()
+    raise LLMProviderError(
+        ERR_PROVIDER_NOT_SUPPORTED,
+        f"Provider '{provider_name}' is not supported",
+    )
 
 
 def _normalize_llm_error_code(code: str | None) -> str:
@@ -330,16 +345,13 @@ def run_analysis(
     if should_try_llm and not _timeout_hit(total_start, effective_policy.timeout_ms):
         provider_name = _select_provider_name()
         generation_provider = provider_name
-        if provider_name != "gemini":
-            generation_error_code = ERR_PROVIDER_NOT_SUPPORTED
-            llm_status = "fallback"
-        elif effective_policy.use_circuit_breaker and not _LLM_BREAKER.can_execute():
+        if effective_policy.use_circuit_breaker and not _LLM_BREAKER.can_execute():
             generation_error_code = ERR_LLM_RATE_LIMIT
             llm_status = "skipped"
         else:
-            provider = GeminiLLMProvider()
-            generation_provider = provider.provider_name
             try:
+                provider = _create_llm_provider(provider_name)
+                generation_provider = provider.provider_name
                 sections = provider.generate_report(payload)
                 generation_mode = "llm"
                 generation_error_code = None
@@ -349,7 +361,10 @@ def run_analysis(
                     _LLM_BREAKER.record_success()
             except LLMProviderError as exc:
                 generation_mode = "fallback"
-                generation_error_code = _normalize_llm_error_code(exc.code)
+                if exc.code == ERR_PROVIDER_NOT_SUPPORTED:
+                    generation_error_code = ERR_PROVIDER_NOT_SUPPORTED
+                else:
+                    generation_error_code = _normalize_llm_error_code(exc.code)
                 llm_status = "fallback"
                 if effective_policy.use_circuit_breaker:
                     _LLM_BREAKER.record_failure()

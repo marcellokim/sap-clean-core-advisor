@@ -82,7 +82,37 @@ class AnalysisPolicyTests(unittest.TestCase):
         mock_rag.assert_called_once()
         mock_llm.assert_called_once()
 
+    @patch("services.application.analysis_runner.FPDFRenderer.render", return_value=b"%PDF-test")
+    @patch(
+        "services.application.analysis_runner.GLMLLMProvider.generate_report",
+        return_value=ReportSections(executive_summary="GLM EXEC", detailed_report="GLM DETAIL"),
+    )
+    @patch(
+        "services.application.analysis_runner.ChromaRAGProvider.get_context_bundle",
+        return_value=RAGContextBundle(context="[출처: x]\nctx", sources=["x"], chunk_count=1),
+    )
+    def test_hybrid_mode_runs_glm_provider_when_selected(
+        self,
+        mock_rag: object,
+        mock_llm: object,
+        _mock_pdf: object,
+    ) -> None:
+        with patch.dict(
+            "os.environ",
+            {"LLM_PROVIDER": "glm", "GLM_API_KEY": "dummy"},
+            clear=False,
+        ):
+            result = run_analysis(
+                _sample_input(),
+                policy=AnalysisPolicy(analysis_mode="hybrid", rag_enabled=True, llm_enabled=True),
+            )
+        self.assertEqual(result.output.analysis_mode, "hybrid")
+        self.assertEqual(result.output.generation_provider, "glm")
+        self.assertEqual(result.output.llm_status, "ok")
+        self.assertEqual(result.output.generation_mode, "llm")
+        mock_rag.assert_called_once()
+        mock_llm.assert_called_once()
+
 
 if __name__ == "__main__":
     unittest.main()
-

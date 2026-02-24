@@ -1,4 +1,4 @@
-"""LLM token usage normalization and Gemini cost estimation helpers."""
+"""LLM token usage normalization and cost estimation helpers."""
 
 from __future__ import annotations
 
@@ -119,7 +119,13 @@ def estimate_usage_from_inputs(inputs: dict[str, Any], output_text: str) -> LLMU
 
 def get_model_prices(model: str | None = None) -> tuple[float, float]:
     """Return input/output USD prices per 1M tokens."""
-    selected_model = (model or os.getenv("GEMINI_MODEL", DEFAULT_MODEL)).strip().lower()
+    selected_model = (
+        model
+        or os.getenv("LLM_MODEL")
+        or os.getenv("GLM_MODEL")
+        or os.getenv("GEMINI_MODEL")
+        or DEFAULT_MODEL
+    ).strip().lower()
     default_input = DEFAULT_INPUT_PRICE_PER_1M
     default_output = DEFAULT_OUTPUT_PRICE_PER_1M
 
@@ -158,4 +164,3 @@ def build_monthly_projection(cost_per_run_usd: float) -> dict[str, float]:
     for requests in baseline_requests:
         projection[f"{requests}_runs"] = round(cost_per_run_usd * requests, 6)
     return projection
-

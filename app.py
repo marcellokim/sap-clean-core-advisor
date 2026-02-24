@@ -26,6 +26,10 @@ def _is_true(value: str | None) -> bool:
     return value.strip().lower() in {"1", "true", "t", "yes", "y", "on"}
 
 
+def _current_llm_provider() -> str:
+    return os.getenv("LLM_PROVIDER", "gemini").strip().lower() or "gemini"
+
+
 def _build_support_pack_zip(language_mode: str) -> bytes:
     """Build downloadable EA support pack ZIP bytes."""
     include_all = language_mode == "ALL"
@@ -116,8 +120,10 @@ with st.sidebar:
         width="stretch",
     )
     st.divider()
+    provider = _current_llm_provider()
+    provider_label = "GLM-5" if provider in {"glm", "glm-5", "zhipu"} else "Gemini"
     st.caption(
-        "Built with Streamlit • LangChain • Gemini • ChromaDB\n\n"
+        f"Built with Streamlit • LangChain • {provider_label} • ChromaDB\n\n"
         "Reducing complexity and operational costs\n"
         "through intelligent automation."
     )
@@ -168,10 +174,17 @@ def main() -> None:
             pdf_bytes = analysis_result.pdf_bytes
         except Exception as e:
             err_msg = str(e).strip()
-            if not os.getenv("GOOGLE_API_KEY", "").strip():
+            provider = _current_llm_provider()
+            key_missing = False
+            if provider in {"glm", "glm-5", "zhipu"}:
+                key_missing = not os.getenv("GLM_API_KEY", "").strip()
+            else:
+                key_missing = not os.getenv("GOOGLE_API_KEY", "").strip()
+
+            if key_missing:
                 st.error(
                     "분석 중 오류가 발생했습니다.\n\n"
-                    "GOOGLE_API_KEY가 .env 파일에 설정되어 있는지 확인하세요."
+                    "선택한 LLM provider API 키가 .env 파일에 설정되어 있는지 확인하세요."
                 )
             else:
                 st.error(
