@@ -10,6 +10,7 @@ from typing import Any
 
 from services.config_utils import load_json_yaml
 from services.industry_mapper import resolve_industry_profile
+from config.settings import settings
 
 DEFAULT_RULESET_DIR = Path(__file__).resolve().parent.parent / "config" / "rulesets"
 
@@ -34,25 +35,19 @@ class RulesetResolution:
 
 
 def _ruleset_root() -> Path:
-    return Path(os.getenv("RULESET_DIR", str(DEFAULT_RULESET_DIR)))
+    return Path(settings.RULESET_DIR)
 
 
 def _generated_root() -> Path:
-    return Path(
-        os.getenv("RULESET_GENERATED_DIR", str(_ruleset_root() / "generated"))
-    )
-
-
-def _is_true(value: str | None) -> bool:
-    if value is None:
-        return False
-    return value.strip().lower() in {"1", "true", "t", "yes", "y", "on"}
+    if settings.RULESET_GENERATED_DIR:
+        return Path(settings.RULESET_GENERATED_DIR)
+    return _ruleset_root() / "generated"
 
 
 def _get_path_candidates(canonical_profile: str) -> list[tuple[str, Path]]:
     root = _ruleset_root()
     generated_root = _generated_root()
-    allow_generated = _is_true(os.getenv("RULESET_ALLOW_GENERATED", "false"))
+    allow_generated = settings.RULESET_ALLOW_GENERATED
     candidates: list[tuple[str, Path]] = []
     if allow_generated:
         candidates.append(("generated", generated_root / f"{canonical_profile}.yaml"))

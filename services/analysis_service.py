@@ -17,9 +17,9 @@ from services.domain.validation_engine import (
 )
 
 
-def analyze_customer_input(customer_input):
+def analyze_customer_input(customer_input, lang: str = "ko"):
     """Backward-compatible entrypoint for existing callers."""
-    return run_analysis(customer_input, policy=AnalysisPolicy.from_env())
+    return run_analysis(customer_input, policy=AnalysisPolicy.from_env(), lang=lang)
 
 
 __all__ = [

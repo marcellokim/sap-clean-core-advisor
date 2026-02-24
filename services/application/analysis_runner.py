@@ -46,6 +46,7 @@ from services.llm_cost import (
 from services.llm_provider import LLMProvider, LLMProviderError, LLMUsage, ReportPayload, ReportSections
 from services.rag_pipeline import RAGContextBundle
 from services.ruleset_loader import resolve_ruleset_profile
+from config.settings import settings
 
 logger = logging.getLogger(__name__)
 load_dotenv()
@@ -74,27 +75,17 @@ class AnalysisPolicy:
 
     @classmethod
     def from_env(cls, analysis_mode: AnalysisMode | None = None) -> "AnalysisPolicy":
-        mode_raw = (analysis_mode or os.getenv("ANALYSIS_MODE", "deterministic")).strip().lower()
+        mode_raw = (analysis_mode or settings.ANALYSIS_MODE).strip().lower()
         mode: AnalysisMode = "deterministic"
         if mode_raw in {"deterministic", "hybrid", "llm_only"}:
             mode = mode_raw  # type: ignore[assignment]
 
-        rag_enabled = cls._is_true(os.getenv("RAG_ENABLE", "true"))
-        llm_enabled = not cls._is_true(os.getenv("LLM_DISABLE", "false"))
-
-        timeout_raw = os.getenv("ANALYSIS_TIMEOUT_MS", "0").strip()
-        try:
-            timeout_ms = max(0, int(timeout_raw))
-        except ValueError:
-            timeout_ms = 0
-
-        use_cb = cls._is_true(os.getenv("ANALYSIS_USE_CIRCUIT_BREAKER", "true"))
         return cls(
             analysis_mode=mode,
-            rag_enabled=rag_enabled,
-            llm_enabled=llm_enabled,
-            timeout_ms=timeout_ms,
-            use_circuit_breaker=use_cb,
+            rag_enabled=settings.RAG_ENABLE,
+            llm_enabled=not settings.LLM_DISABLE,
+            timeout_ms=settings.ANALYSIS_TIMEOUT_MS,
+            use_circuit_breaker=settings.ANALYSIS_USE_CIRCUIT_BREAKER,
         )
 
 
@@ -108,22 +99,13 @@ class AnalysisResult:
     pdf_error_message: str | None
 
 
-def _env_int(name: str, default: int) -> int:
-    raw = os.getenv(name, str(default)).strip()
-    try:
-        value = int(raw)
-    except ValueError:
-        return default
-    return max(1, value)
-
-
 _LLM_BREAKER = CircuitBreaker(
-    failure_threshold=_env_int("LLM_CB_FAILURE_THRESHOLD", 3),
-    open_seconds=_env_int("LLM_CB_OPEN_SEC", 120),
+    failure_threshold=settings.LLM_CB_FAILURE_THRESHOLD,
+    open_seconds=settings.LLM_CB_OPEN_SEC,
 )
 _RAG_BREAKER = CircuitBreaker(
-    failure_threshold=_env_int("RAG_CB_FAILURE_THRESHOLD", 3),
-    open_seconds=_env_int("RAG_CB_OPEN_SEC", 120),
+    failure_threshold=settings.RAG_CB_FAILURE_THRESHOLD,
+    open_seconds=settings.RAG_CB_OPEN_SEC,
 )
 
 
@@ -144,7 +126,7 @@ def _is_true(value: str | None) -> bool:
 
 
 def _select_provider_name() -> str:
-    return os.getenv("LLM_PROVIDER", "gemini").strip().lower() or "gemini"
+    return settings.LLM_PROVIDER.strip().lower() or "gemini"
 
 
 def _create_llm_provider(provider_name: str) -> LLMProvider:
@@ -247,14 +229,7 @@ def _build_fallback_reports(
 
 
 def _write_analysis_artifact(result: AnalysisResult) -> None:
-    if os.getenv("ANALYSIS_ARTIFACTS_ENABLE", "false").strip().lower() not in {
-        "1",
-        "true",
-        "t",
-        "yes",
-        "y",
-        "on",
-    }:
+    if not settings.ANALYSIS_ARTIFACTS_ENABLE:
         return
     root = Path(__file__).resolve().parent.parent.parent / "artifacts" / "analysis"
     root.mkdir(parents=True, exist_ok=True)
@@ -270,6 +245,7 @@ def _write_analysis_artifact(result: AnalysisResult) -> None:
 def run_analysis(
     customer_input: CustomerInput,
     policy: AnalysisPolicy | None = None,
+    lang: str = "ko",
 ) -> AnalysisResult:
     """Run analysis under a policy with resilient stage orchestration."""
     effective_policy = policy or AnalysisPolicy.from_env()
@@ -286,8 +262,8 @@ def run_analysis(
     calc_start = time.perf_counter()
     ruleset_resolution = resolve_ruleset_profile(customer_input.industry)
     calc = run_calculation(customer_input, ruleset_profile=ruleset_resolution.profile)
-    customer_info = format_customer_info(customer_input)
-    recommendation_traces: list[RecommendationTrace] = extract_recommendations(calc, customer_input)
+    customer_info = format_customer_info(customer_input, lang=lang)
+    recommendation_traces: list[RecommendationTrace] = extract_recommendations(calc, customer_input, lang=lang)
     recommendations = [trace.text for trace in recommendation_traces]
     stage_metrics_ms["calc_ms"] = _elapsed_ms(calc_start)
 
@@ -322,7 +298,7 @@ def run_analysis(
                 rag_error_code = ERR_RAG_UNAVAILABLE
                 if effective_policy.use_circuit_breaker:
                     _RAG_BREAKER.record_failure()
-                if not _is_true(os.getenv("RAG_OFFLINE_ALLOW", "true")):
+                if not settings.RAG_OFFLINE_ALLOW:
                     raise
                 logger.warning("RAG context unavailable, continuing without it: [%s] %s", rag_error_code, exc)
     stage_metrics_ms["rag_ms"] = _elapsed_ms(rag_start)
@@ -352,7 +328,10 @@ def run_analysis(
             try:
                 provider = _create_llm_provider(provider_name)
                 generation_provider = provider.provider_name
-                sections = provider.generate_report(payload)
+                import concurrent.futures
+                with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+                    future = executor.submit(provider.generate_report, payload)
+                    sections = future.result(timeout=effective_policy.timeout_ms / 1000.0)
                 generation_mode = "llm"
                 generation_error_code = None
                 llm_status = "ok"
@@ -372,10 +351,10 @@ def run_analysis(
             except Exception as exc:  # pragma: no cover - defensive
                 generation_mode = "fallback"
                 generation_error_code = ERR_LLM_PROVIDER
-                llm_status = "fallback"
+                llm_status = "error" if isinstance(exc, concurrent.futures.TimeoutError) else "fallback"
                 if effective_policy.use_circuit_breaker:
                     _LLM_BREAKER.record_failure()
-                logger.warning("Unknown LLM provider failure. Using fallback report: %s", exc)
+                logger.warning("Unknown LLM provider/Timeout failure. Using fallback report: %s", exc)
     stage_metrics_ms["llm_ms"] = _elapsed_ms(llm_start)
 
     if generation_mode != "llm" or llm_usage.total_tokens <= 0:

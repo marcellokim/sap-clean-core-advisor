@@ -29,19 +29,16 @@ class LlmCostTests(unittest.TestCase):
 
     def test_estimate_cost_usd_applies_token_prices(self) -> None:
         usage = LLMUsage(prompt_tokens=3000, output_tokens=1000, total_tokens=4000, source="estimated")
-        with patch.dict(
-            "os.environ",
-            {
-                "LLM_PRICE_INPUT_PER_1M": "0.075",
-                "LLM_PRICE_OUTPUT_PER_1M": "0.30",
-            },
-            clear=False,
+        with patch.multiple(
+            "config.settings.settings",
+            LLM_PRICE_INPUT_PER_1M=0.075,
+            LLM_PRICE_OUTPUT_PER_1M=0.30,
         ):
             cost = estimate_cost_usd(usage)
         self.assertAlmostEqual(cost, 0.000525, places=9)
 
     def test_monthly_projection_includes_env_target(self) -> None:
-        with patch.dict("os.environ", {"LLM_MONTHLY_REQUESTS": "2500"}, clear=False):
+        with patch.multiple("config.settings.settings", LLM_MONTHLY_REQUESTS=2500):
             projection = build_monthly_projection(0.001)
         self.assertIn("100_runs", projection)
         self.assertIn("1000_runs", projection)

@@ -12,9 +12,11 @@ import streamlit as st
 
 from models.schemas import CustomerInput
 from services.analysis_service import AnalysisPolicy, run_analysis
-from services.rag_pipeline import build_vector_store
+from services.infrastructure.rag.chroma_provider import get_cached_vector_store
 from ui.dashboard import render_dashboard
 from ui.input_form import render_input_form
+from config.settings import settings
+from ui.locales import _
 
 DOCS_ROOT = Path(__file__).resolve().parent / "docs"
 LOGO_PATH = Path(__file__).resolve().parent / "data" / "assets" / "sap_logo.svg"
@@ -27,7 +29,7 @@ def _is_true(value: str | None) -> bool:
 
 
 def _current_llm_provider() -> str:
-    return os.getenv("LLM_PROVIDER", "gemini").strip().lower() or "gemini"
+    return settings.LLM_PROVIDER.strip().lower() or "gemini"
 
 
 def _build_support_pack_zip(language_mode: str) -> bytes:
@@ -76,11 +78,15 @@ with st.sidebar:
         st.image(str(LOGO_PATH), width=120)
     else:
         st.markdown("### SAP")
+    
     st.markdown("## RISE with SAP")
     st.markdown("### Clean Core Assessment\n& TCO Simulator")
     st.divider()
-    st.markdown(
-        """
+
+    ui_lang = st.selectbox("UI Language / 언어", options=["KO", "EN"], index=0)
+    st.session_state["ui_lang"] = ui_lang
+
+    target_persona_ko = """
         **Target Persona**
         - 🏢 국내 중견 제조기업 CIO
         - 📦 15년+ 된 ECC 6.0 운영 중
@@ -93,27 +99,39 @@ with st.sidebar:
         - 💹 TCO 절감 효과를 숫자로 증명
         - 📄 임원 보고용 EA Cookbook 즉시 생성
         """
-    )
+    target_persona_en = """
+        **Target Persona**
+        - 🏢 CIO of Mid-sized Manufacturing
+        - 📦 15+ years on ECC 6.0
+        - 🔧 High complexity due to Z-code
+        - 💰 Evaluating Cloud Migration
+
+        **Value of this tool**
+        - ⏱️ Initial assessment in 1 minute
+        - 📊 Auto-calculated Clean Core Score
+        - 💹 TCO savings proven in numbers
+        - 📄 Instantly generate EA Cookbook for execs
+        """
+    st.markdown(_(target_persona_ko, target_persona_en))
     st.divider()
     selected_mode = st.selectbox(
-        "Analysis Mode",
+        _("Analysis Mode", "Analysis Mode"),
         options=["deterministic", "hybrid", "llm_only"],
         index=0,
-        help=(
-            "deterministic: 규칙 기반만 실행\n"
-            "hybrid: 규칙+RAG+LLM 시도 후 폴백\n"
-            "llm_only: 데모/실험용 모드"
+        help=_(
+            "deterministic: 규칙 기반만 실행\nhybrid: 규칙+RAG+LLM 시도 후 폴백\nllm_only: 데모/실험용 모드",
+            "deterministic: Rule-based only\nhybrid: Rule+RAG+LLM with fallback\nllm_only: Demo/Experimental mode"
         ),
     )
     st.divider()
     pack_lang = st.selectbox(
-        "EA Support Pack Language",
+        _("EA Support Pack Language", "EA Support Pack Language"),
         options=["KO", "EN", "ALL"],
         index=0,
     )
     support_zip = _build_support_pack_zip(pack_lang)
     st.download_button(
-        label="📦 Download EA Support Pack",
+        label=_("📦 Download EA Support Pack", "📦 Download EA Support Pack"),
         data=support_zip,
         file_name=f"EA_Support_Pack_{pack_lang}.zip",
         mime="application/zip",
@@ -124,8 +142,7 @@ with st.sidebar:
     provider_label = "GLM-5" if provider in {"glm", "glm-5", "zhipu"} else "Gemini"
     st.caption(
         f"Built with Streamlit • LangChain • {provider_label} • ChromaDB\n\n"
-        "Reducing complexity and operational costs\n"
-        "through intelligent automation."
+        + _("Reducing complexity and operational costs\nthrough intelligent automation.", "Reducing complexity and operational costs\nthrough intelligent automation.")
     )
 
 
@@ -134,27 +151,25 @@ with st.sidebar:
 # ────────────────────────────────────────────────────────────────────
 def main() -> None:
     """메인 앱 플로우."""
-    if _is_true(os.getenv("RAG_WARMUP_ON_START", "false")):
+    if settings.RAG_WARMUP_ON_START:
         try:
-            build_vector_store()
+            get_cached_vector_store()
         except Exception:
-            # warm-up 실패는 치명 오류로 취급하지 않음
             pass
 
     st.markdown(
         "<h1 style='text-align:center;'>🏗️ RISE with SAP: Clean Core Assessment</h1>"
         "<p style='text-align:center; color:gray;'>"
-        "AI 기반 SAP 레거시 시스템 진단 및 전환 전략 도우미</p>",
+        + _("AI 기반 SAP 레거시 시스템 진단 및 전환 전략 도우미", "AI-driven SAP Legacy System Assessment & Strategy Assistant") +
+        "</p>",
         unsafe_allow_html=True,
     )
 
-    # ── 입력 폼 ──
     customer_input: CustomerInput | None = render_input_form()
 
     if customer_input is None:
-        # 입력 전 안내
         st.markdown("---")
-        st.info(
+        info_ko = (
             "👆 위 폼에 고객사 정보를 입력하고 **'Clean Core 분석 시작'** 버튼을 눌러주세요.\n\n"
             "분석 결과로 다음을 제공합니다:\n"
             "- **Clean Core Score** (0-100) – 현재 시스템의 표준 준수도\n"
@@ -163,13 +178,24 @@ def main() -> None:
             "- **AI 기반 진단 리포트** – 리스크 평가 및 전환 전략\n"
             "- **EA Cookbook PDF** – 임원 보고용 문서 자동 생성"
         )
+        info_en = (
+            "👆 Enter your company details above and click **'Start Clean Core Analysis'**.\n\n"
+            "The analysis will provide:\n"
+            "- **Clean Core Score** (0-100) – Standard compliance of current system\n"
+            "- **Tech Debt Heatmap** – Visualized custom debt by module\n"
+            "- **TCO Comparative Analysis** – Current vs Projected costs\n"
+            "- **AI Diagnosis Report** – Risk assessment & transition strategy\n"
+            "- **EA Cookbook PDF** – Automatically generated executive report"
+        )
+        st.info(_(info_ko, info_en))
         return
 
-    # ── 분석 실행 ──
-    with st.spinner("🔄 AI가 SAP Clean Core 분석을 수행하고 있습니다... (약 30-60초 소요)"):
+    with st.spinner(_("🔄 AI가 SAP Clean Core 분석을 수행하고 있습니다... (약 30-60초 소요)", "🔄 AI is performing Clean Core Analysis... (Approx. 30-60s)")):
         try:
             policy = AnalysisPolicy.from_env(analysis_mode=selected_mode)
-            analysis_result = run_analysis(customer_input, policy=policy)
+            # Fetch strings in requested language
+            lang = st.session_state.get("ui_lang", "KO").lower()
+            analysis_result = run_analysis(customer_input, policy=policy, lang=lang)
             output = analysis_result.output
             pdf_bytes = analysis_result.pdf_bytes
         except Exception as e:
@@ -177,38 +203,32 @@ def main() -> None:
             provider = _current_llm_provider()
             key_missing = False
             if provider in {"glm", "glm-5", "zhipu"}:
-                key_missing = not os.getenv("GLM_API_KEY", "").strip()
+                key_missing = not settings.GLM_API_KEY.strip()
             else:
-                key_missing = not os.getenv("GOOGLE_API_KEY", "").strip()
+                key_missing = not settings.GOOGLE_API_KEY.strip()
 
             if key_missing:
                 st.error(
-                    "분석 중 오류가 발생했습니다.\n\n"
-                    "선택한 LLM provider API 키가 .env 파일에 설정되어 있는지 확인하세요."
+                    _("분석 중 오류가 발생했습니다.\n\n선택한 LLM provider API 키가 .env 파일에 설정되어 있는지 확인하세요.",
+                      "An error occurred during analysis.\n\nPlease check if LLM provider API key is set in .env file.")
                 )
             else:
-                st.error(
-                    "분석 중 오류가 발생했습니다. 네트워크 상태 또는 API 한도를 확인하세요."
-                )
+                st.error(_("분석 중 오류가 발생했습니다. 네트워크 상태 또는 API 한도를 확인하세요.", "An error occurred during analysis. Check network or API limits."))
                 if err_msg:
-                    st.caption(f"상세 오류: {err_msg}")
+                    st.caption(_(f"상세 오류: {err_msg}", f"Error Details: {err_msg}"))
             return
 
-    # ── PDF 생성 결과 안내 ──
     if analysis_result.pdf_error_code:
         st.warning(
-            "PDF 생성에 실패하여 화면 결과만 제공합니다. "
-            f"(코드: {analysis_result.pdf_error_code})"
+            _("PDF 생성에 실패하여 화면 결과만 제공합니다. (코드: {})", "Failed to generate PDF, providing UI results only. (Code: {})").format(analysis_result.pdf_error_code)
         )
         if analysis_result.pdf_error_message:
-            st.caption(f"PDF 오류 상세: {analysis_result.pdf_error_message}")
+            st.caption(_("PDF 오류 상세: {}", "PDF Error Details: {}").format(analysis_result.pdf_error_message))
 
-    # ── 결과 저장 (session_state) ──
     st.session_state["last_output"] = output
     st.session_state["last_input"] = customer_input
     st.session_state["last_pdf"] = pdf_bytes
 
-    # ── 대시보드 렌더링 ──
     render_dashboard(output, customer_input, pdf_bytes)
 
 

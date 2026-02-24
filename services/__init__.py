@@ -3,7 +3,7 @@
 from services.analysis_service import AnalysisPolicy, AnalysisResult, analyze_customer_input, run_analysis
 from services.cost_calculator import run_calculation
 from services.industry_mapper import IndustryResolution, resolve_industry_profile
-from services.llm_engine import GeminiReportProvider
+from services.infrastructure.llm.gemini_provider import GeminiLLMProvider
 from services.llm_provider import LLMProviderError, LLMUsage, ReportPayload, ReportSections
 from services.pdf_generator import generate_pdf
 from services.rag_pipeline import RAGContextBundle, build_vector_store, search
@@ -17,7 +17,7 @@ __all__ = [
     "run_calculation",
     "IndustryResolution",
     "resolve_industry_profile",
-    "GeminiReportProvider",
+    "GeminiLLMProvider",
     "LLMProviderError",
     "LLMUsage",
     "ReportPayload",

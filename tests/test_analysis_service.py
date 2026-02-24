@@ -13,6 +13,7 @@ from services.error_codes import ERR_LLM_RATE_LIMIT
 from services.llm_provider import LLMProviderError, ReportSections
 from services.rag_pipeline import RAGContextBundle
 from services.ruleset_loader import resolve_ruleset_profile
+from config.settings import settings
 
 
 def _sample_input(industry: str = "제조") -> CustomerInput:
@@ -40,27 +41,27 @@ def _sample_input(industry: str = "제조") -> CustomerInput:
 class AnalysisServiceTests(unittest.TestCase):
     def setUp(self) -> None:
         self._tmp_dir = tempfile.TemporaryDirectory()
-        self._old_generated = os.environ.get("RULESET_GENERATED_DIR")
-        self._old_generated_flag = os.environ.get("RULESET_ALLOW_GENERATED")
-        self._old_mode = os.environ.get("ANALYSIS_MODE")
-        os.environ["RULESET_GENERATED_DIR"] = self._tmp_dir.name
-        os.environ["RULESET_ALLOW_GENERATED"] = "false"
-        os.environ["ANALYSIS_MODE"] = "hybrid"
+        self._old_generated = settings.RULESET_GENERATED_DIR
+        self._old_generated_flag = settings.RULESET_ALLOW_GENERATED
+        self._old_mode = settings.ANALYSIS_MODE
+        settings.RULESET_GENERATED_DIR = self._tmp_dir.name
+        settings.RULESET_ALLOW_GENERATED = False
+        settings.ANALYSIS_MODE = "hybrid"
         resolve_ruleset_profile.cache_clear()
 
     def tearDown(self) -> None:
         if self._old_generated is None:
-            os.environ.pop("RULESET_GENERATED_DIR", None)
+            settings.RULESET_GENERATED_DIR = ""
         else:
-            os.environ["RULESET_GENERATED_DIR"] = self._old_generated
+            settings.RULESET_GENERATED_DIR = self._old_generated
         if self._old_generated_flag is None:
-            os.environ.pop("RULESET_ALLOW_GENERATED", None)
+            settings.RULESET_ALLOW_GENERATED = False
         else:
-            os.environ["RULESET_ALLOW_GENERATED"] = self._old_generated_flag
+            settings.RULESET_ALLOW_GENERATED = self._old_generated_flag
         if self._old_mode is None:
-            os.environ.pop("ANALYSIS_MODE", None)
+            settings.ANALYSIS_MODE = "deterministic"
         else:
-            os.environ["ANALYSIS_MODE"] = self._old_mode
+            settings.ANALYSIS_MODE = self._old_mode
         resolve_ruleset_profile.cache_clear()
         self._tmp_dir.cleanup()
 

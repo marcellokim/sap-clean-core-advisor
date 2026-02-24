@@ -19,6 +19,7 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from services.config_utils import load_json_yaml
+from config.settings import settings
 
 DEFAULT_CATALOG_PATH = PROJECT_ROOT / "docs" / "sources.yaml"
 
@@ -129,11 +130,7 @@ def verify_source_urls(sources: list[dict[str, Any]], timeout_sec: int = 8) -> l
 
 
 def _get_max_age_days() -> int:
-    raw = os.getenv("SOURCE_VERIFY_MAX_AGE_DAYS", "90").strip()
-    try:
-        return max(1, int(raw))
-    except ValueError:
-        return 90
+    return max(1, settings.SOURCE_VERIFY_MAX_AGE_DAYS)
 
 
 def main() -> int:

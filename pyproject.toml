@@ -22,4 +22,5 @@ dependencies = [
     "plotly>=6.0.0",
     # PDF
     "fpdf2>=2.8.0",
+    "pydantic-settings>=2.12.0",
 ]

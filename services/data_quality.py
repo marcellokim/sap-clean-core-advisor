@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 from dataclasses import dataclass
 from typing import Any
+from config.settings import settings
 
 
 REQUIRED_COLUMNS = [
@@ -47,11 +48,7 @@ def _as_int(value: Any) -> int | None:
 
 
 def _min_samples_threshold() -> int:
-    raw = os.getenv("CALIBRATION_MIN_SAMPLES", "20").strip()
-    try:
-        return max(1, int(raw))
-    except ValueError:
-        return 20
+    return max(1, settings.CALIBRATION_MIN_SAMPLES)
 
 
 def validate_calibration_rows(rows: list[dict[str, Any]]) -> DataQualityResult:

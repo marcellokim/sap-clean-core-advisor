@@ -17,6 +17,7 @@ from pathlib import Path
 from langchain_chroma import Chroma
 from langchain_core.documents import Document
 from langchain_text_splitters import RecursiveCharacterTextSplitter
+from config.settings import settings
 
 try:
     from langchain_huggingface import HuggingFaceEmbeddings
@@ -54,12 +55,7 @@ class RAGContextBundle:
 
 
 def _get_max_context_chars() -> int:
-    raw = os.getenv("RAG_MAX_CONTEXT_CHARS", str(DEFAULT_MAX_CONTEXT_CHARS)).strip()
-    try:
-        value = int(raw)
-    except ValueError:
-        return DEFAULT_MAX_CONTEXT_CHARS
-    return max(1000, value)
+    return max(1000, settings.RAG_MAX_CONTEXT_CHARS)
 
 
 @lru_cache(maxsize=1)

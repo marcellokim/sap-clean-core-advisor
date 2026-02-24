@@ -8,10 +8,9 @@ from math import ceil
 from typing import Any
 
 from services.llm_provider import LLMUsage, ReportPayload
+from config.settings import settings
 
 DEFAULT_MODEL = "gemini-2.0-flash-lite"
-DEFAULT_INPUT_PRICE_PER_1M = 0.075
-DEFAULT_OUTPUT_PRICE_PER_1M = 0.30
 
 
 def _env_float(name: str, default: float) -> float:
@@ -36,7 +35,7 @@ def estimate_tokens_from_text(text: str) -> int:
     """Rough token estimator based on character count."""
     if not text:
         return 0
-    divisor = _env_int("LLM_TOKEN_ESTIMATE_CHAR_DIVISOR", 4)
+    divisor = int(settings.LLM_TOKEN_ESTIMATE_CHAR_DIVISOR)
     return max(1, ceil(len(text) / divisor))
 
 
@@ -121,23 +120,23 @@ def get_model_prices(model: str | None = None) -> tuple[float, float]:
     """Return input/output USD prices per 1M tokens."""
     selected_model = (
         model
-        or os.getenv("LLM_MODEL")
-        or os.getenv("GLM_MODEL")
-        or os.getenv("GEMINI_MODEL")
+        or settings.LLM_MODEL
+        or settings.GLM_MODEL
+        or settings.GEMINI_MODEL
         or DEFAULT_MODEL
     ).strip().lower()
-    default_input = DEFAULT_INPUT_PRICE_PER_1M
-    default_output = DEFAULT_OUTPUT_PRICE_PER_1M
+    default_input = settings.LLM_PRICE_INPUT_PER_1M
+    default_output = settings.LLM_PRICE_OUTPUT_PER_1M
 
     # model-specific override env keys
     model_key = selected_model.upper().replace("-", "_").replace(".", "_")
     input_price = _env_float(
         f"LLM_PRICE_{model_key}_INPUT_PER_1M",
-        _env_float("LLM_PRICE_INPUT_PER_1M", default_input),
+        default_input,
     )
     output_price = _env_float(
         f"LLM_PRICE_{model_key}_OUTPUT_PER_1M",
-        _env_float("LLM_PRICE_OUTPUT_PER_1M", default_output),
+        default_output,
     )
     return input_price, output_price
 
@@ -155,7 +154,7 @@ def estimate_cost_usd(usage: LLMUsage, model: str | None = None) -> float:
 def build_monthly_projection(cost_per_run_usd: float) -> dict[str, float]:
     """Build simple monthly cost projection table."""
     baseline_requests = [100, 500, 1_000, 5_000, 10_000]
-    env_requests = _env_int("LLM_MONTHLY_REQUESTS", 1000)
+    env_requests = int(settings.LLM_MONTHLY_REQUESTS)
     if env_requests not in baseline_requests:
         baseline_requests.append(env_requests)
     baseline_requests = sorted(set(baseline_requests))

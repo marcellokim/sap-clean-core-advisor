@@ -11,6 +11,7 @@ from models.schemas import CustomerInput, ModuleInfo
 from services.cost_calculator import run_calculation
 from services.data_quality import validate_calibration_rows
 from services.ruleset_loader import RulesetProfile
+from config.settings import settings
 
 TUNABLE_TCO_KEYS = [
     "infra_cost_per_user",
@@ -57,8 +58,8 @@ def _as_int(value: Any, default: int = 0) -> int:
 
 
 def _weights() -> tuple[float, float]:
-    w_tco = _as_float(os.getenv("CALIBRATION_WEIGHT_TCO", "0.7"), 0.7)
-    w_risk = _as_float(os.getenv("CALIBRATION_WEIGHT_RISK", "0.3"), 0.3)
+    w_tco = settings.CALIBRATION_WEIGHT_TCO
+    w_risk = settings.CALIBRATION_WEIGHT_RISK
     total = w_tco + w_risk
     if total <= 0:
         return 0.7, 0.3

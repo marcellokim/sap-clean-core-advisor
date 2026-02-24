@@ -11,7 +11,7 @@ import plotly.graph_objects as go
 
 from models.schemas import AdvisorOutput, CustomerInput
 from services.error_codes import ERR_LLM_PROVIDER
-
+from ui.locales import _
 
 # ────────────────────────────────────────────────────────────────────
 # 색상 팔레트 (SAP 톤)
@@ -60,15 +60,22 @@ def _render_score_gauge(score: float) -> go.Figure:
 
 def _render_score_breakdown(breakdown: dict[str, float]) -> go.Figure:
     """항목별 점수 레이더 차트."""
-    labels_map = {
+    labels_map_ko = {
         "custom_code": "커스텀 코드",
         "erp_version": "ERP 버전",
         "database": "데이터베이스",
         "module_complexity": "모듈 복잡도",
     }
+    labels_map_en = {
+        "custom_code": "Custom Code",
+        "erp_version": "ERP Version",
+        "database": "Database",
+        "module_complexity": "Module Complexity",
+    }
+    
+    labels_map = _(labels_map_ko, labels_map_en)
     categories = [labels_map.get(k, k) for k in breakdown]
     values = list(breakdown.values())
-    # 레이더 차트는 닫힌 형태여야 함
     categories.append(categories[0])
     values.append(values[0])
 
@@ -84,7 +91,7 @@ def _render_score_breakdown(breakdown: dict[str, float]) -> go.Figure:
         polar={"radialaxis": {"visible": True, "range": [0, 100]}},
         height=300,
         margin=dict(t=30, b=30, l=60, r=60),
-        title={"text": "항목별 점수 분석", "font": {"size": 14}},
+        title={"text": _("항목별 점수 분석", "Score Breakdown Analysis"), "font": {"size": 14}},
     )
     return fig
 
@@ -113,8 +120,8 @@ def _render_tech_debt_chart(tech_debt: dict[str, float]) -> go.Figure:
         textposition="outside",
     ))
     fig.update_layout(
-        title={"text": "모듈별 기술 부채 (Technical Debt)", "font": {"size": 14}},
-        xaxis_title="기술 부채 점수",
+        title={"text": _("모듈별 기술 부채 (Technical Debt)", "Technical Debt by Module"), "font": {"size": 14}},
+        xaxis_title=_("기술 부채 점수", "Technical Debt Score"),
         yaxis={"autorange": "reversed"},
         height=max(250, len(modules) * 45 + 100),
         margin=dict(t=50, b=40, l=50, r=30),
@@ -140,42 +147,42 @@ def _render_tco_chart(
     fig = go.Figure()
 
     fig.add_trace(go.Bar(
-        name="현재 TCO (As-Is)",
+        name=_("현재 TCO (As-Is)", "Current TCO (As-Is)"),
         x=years,
         y=current_costs,
         marker_color=SAP_RED,
         opacity=0.8,
-        text=[f"{v:.1f}억" for v in current_costs],
+        text=[_("{}억", "{}B").format(f"{v:.1f}") for v in current_costs],
         textposition="auto",
     ))
 
     fig.add_trace(go.Bar(
-        name="전환 후 TCO (To-Be)",
+        name=_("전환 후 TCO (To-Be)", "Projected TCO (To-Be)"),
         x=years,
         y=projected_costs,
         marker_color=SAP_BLUE,
         opacity=0.8,
-        text=[f"{v:.1f}억" for v in projected_costs],
+        text=[_("{}억", "{}B").format(f"{v:.1f}") for v in projected_costs],
         textposition="auto",
     ))
 
     fig.add_trace(go.Scatter(
-        name="누적 절감액",
+        name=_("누적 절감액", "Cumulative Savings"),
         x=years,
         y=cumulative_savings,
         mode="lines+markers+text",
         line={"color": SAP_GREEN, "width": 3, "dash": "dot"},
         marker={"size": 10},
-        text=[f"{v:+.1f}억" for v in cumulative_savings],
+        text=[_("{+}억", "{+}B").format(f"{v:+.1f}") for v in cumulative_savings],
         textposition="top center",
         yaxis="y2",
     ))
 
     fig.update_layout(
-        title={"text": "TCO 비교 분석 (연간)", "font": {"size": 14}},
-        yaxis={"title": "연간 비용 (억원)"},
+        title={"text": _("TCO 비교 분석 (연간)", "TCO Comparison Analysis (Annual)"), "font": {"size": 14}},
+        yaxis={"title": _("연간 비용 (억원)", "Annual Cost (100M KRW)")},
         yaxis2={
-            "title": "누적 절감액 (억원)",
+            "title": _("누적 절감액 (억원)", "Cumulative Savings (100M KRW)"),
             "overlaying": "y",
             "side": "right",
             "showgrid": False,
@@ -198,21 +205,20 @@ def render_dashboard(
     st.markdown("---")
     st.markdown(
         f"<h2 style='text-align:center;'>📊 {customer_input.company_name} – "
-        f"Clean Core Assessment 결과</h2>",
+        + _("Clean Core Assessment 결과", "Clean Core Assessment Results") + "</h2>",
         unsafe_allow_html=True,
     )
 
     if output.generation_mode == "llm":
         provider = output.generation_provider or "unknown"
-        st.success(f"🤖 AI 생성 리포트 ({provider})")
+        st.success(_(f"🤖 AI 생성 리포트 ({provider})", f"🤖 AI Generated Report ({provider})"))
     else:
         reason = output.generation_error_code or ERR_LLM_PROVIDER
         if output.llm_status == "skipped":
-            st.info(f"🧩 규칙 기반 리포트(정책상 LLM 단계 스킵) (코드: {reason})")
+            st.info(_(f"🧩 규칙 기반 리포트(정책상 LLM 단계 스킵) (코드: {reason})", f"🧩 Rule-based Report (LLM skipped by policy) (Code: {reason})"))
         else:
             st.warning(
-                "🧩 규칙 기반 리포트(LLM 쿼터/오류로 폴백) "
-                f"(코드: {reason})"
+                _(f"🧩 규칙 기반 리포트(LLM 쿼터/오류로 폴백) (코드: {reason})", f"🧩 Rule-based Report (LLM fallback due to error/quota) (Code: {reason})")
             )
     st.caption(f"analysis_mode: {output.analysis_mode}")
     status_col1, status_col2, status_col3 = st.columns(3)
@@ -263,17 +269,17 @@ def render_dashboard(
     with kpi1:
         st.metric("Clean Core Score", f"{output.clean_core_score:.1f} / 100")
     with kpi2:
-        st.metric("현재 연간 TCO 추정치", f"{output.current_annual_tco:.1f}억원")
+        st.metric(_("현재 연간 TCO 추정치", "Current Annual TCO Estimate"), _("{}억원", "{}B").format(f"{output.current_annual_tco:.1f}"))
     with kpi3:
         delta_tco = output.projected_tco_after_migration - output.current_annual_tco
         st.metric(
-            "전환 후 TCO 추정치",
-            f"{output.projected_tco_after_migration:.1f}억원",
-            delta=f"{delta_tco:+.1f}억원",
+            _("전환 후 TCO 추정치", "Projected TCO After Transition"),
+            _("{}억원", "{}B").format(f"{output.projected_tco_after_migration:.1f}"),
+            delta=_("{+}억원", "{+}B").format(f"{delta_tco:+.1f}"),
             delta_color="inverse",
         )
     with kpi4:
-        st.metric("3년 누적 절감", f"{output.tco_savings_3yr:.1f}억원")
+        st.metric(_("3년 누적 절감", "3-Year Cumulative Savings"), _("{}억원", "{}B").format(f"{output.tco_savings_3yr:.1f}"))
 
     # ── 리스크 수준 배지 ──
     risk_color = RISK_COLORS.get(output.risk_level, SAP_ORANGE)
@@ -281,7 +287,7 @@ def render_dashboard(
         f"<div style='text-align:center; margin: 8px 0 16px;'>"
         f"<span style='background:{risk_color}; color:white; padding:6px 20px; "
         f"border-radius:20px; font-weight:bold;'>"
-        f"리스크 수준: {output.risk_level}</span></div>",
+        + _("리스크 수준: ", "Risk Level: ") + f"{output.risk_level}</span></div>",
         unsafe_allow_html=True,
     )
 
@@ -290,12 +296,12 @@ def render_dashboard(
     with chart_col1:
         st.plotly_chart(
             _render_score_gauge(output.clean_core_score),
-            width="stretch",
+            use_container_width=True,
         )
     with chart_col2:
         st.plotly_chart(
             _render_score_breakdown(output.score_breakdown),
-            width="stretch",
+            use_container_width=True,
         )
 
     # ── 차트 Row 2: 기술 부채 + TCO ──
@@ -303,7 +309,7 @@ def render_dashboard(
     with chart_col3:
         st.plotly_chart(
             _render_tech_debt_chart(output.tech_debt_breakdown),
-            width="stretch",
+            use_container_width=True,
         )
     with chart_col4:
         st.plotly_chart(
@@ -312,28 +318,28 @@ def render_dashboard(
                 output.projected_tco_after_migration,
                 output.tco_savings_3yr,
             ),
-            width="stretch",
+            use_container_width=True,
         )
 
     # ── 리스크 요인 ──
     if output.risk_factors:
-        st.subheader("⚠️ 주요 리스크 요인")
+        st.subheader(_("⚠️ 주요 리스크 요인", "⚠️ Key Risk Factors"))
         for rf in output.risk_factors:
             st.markdown(f"- 🔸 {rf}")
 
     if output.validation_warnings:
-        st.subheader("🧪 입력 검증 경고")
+        st.subheader(_("🧪 입력 검증 경고", "🧪 Input Validation Warnings"))
         for warning in output.validation_warnings:
             st.markdown(f"- ⚠️ {warning}")
 
     # ── 핵심 권고사항 ──
     if output.recommendations:
-        st.subheader("💡 핵심 권고사항")
+        st.subheader(_("💡 핵심 권고사항", "💡 Core Recommendations"))
         for idx, rec in enumerate(output.recommendations, 1):
             st.markdown(f"**{idx}.** {rec}")
 
     if output.evidence_ledger:
-        st.subheader("🔗 근거 체인 (Evidence Ledger)")
+        st.subheader(_("🔗 근거 체인 (Evidence Ledger)", "🔗 Evidence Ledger"))
         table_rows = []
         for item in output.evidence_ledger:
             table_rows.append(
@@ -345,31 +351,31 @@ def render_dashboard(
                     "Ref IDs": ", ".join(item.reference_source_ids) if item.reference_source_ids else "-",
                 }
             )
-        st.dataframe(table_rows, width="stretch", hide_index=True)
+        st.dataframe(table_rows, use_container_width=True, hide_index=True)
 
     st.markdown("---")
 
     # ── Executive Summary ──
-    st.subheader("📝 Executive Summary")
+    st.subheader(_("📝 Executive Summary", "📝 Executive Summary"))
     st.markdown(output.executive_summary)
 
     # ── 상세 리포트 (접을 수 있는 expander) ──
-    with st.expander("📖 상세 분석 리포트 (클릭하여 펼치기)", expanded=False):
+    with st.expander(_("📖 상세 분석 리포트 (클릭하여 펼치기)", "📖 Detailed Analysis Report (Click to Expand)"), expanded=False):
         st.markdown(output.detailed_report)
 
     # ── PDF 다운로드 ──
     if pdf_bytes:
         st.markdown("---")
-        st.subheader("📥 EA Cookbook 다운로드")
+        st.subheader(_("📥 EA Cookbook 다운로드", "📥 Download EA Cookbook"))
         st.caption(
-            "분석 결과를 'Preliminary EA Cookbook' PDF로 다운로드하세요. "
-            "고객 미팅 전 초안 자료로 활용할 수 있습니다."
+            _("분석 결과를 'Preliminary EA Cookbook' PDF로 다운로드하세요. 고객 미팅 전 초안 자료로 활용할 수 있습니다.",
+              "Download the analysis results as a 'Preliminary EA Cookbook' PDF. Use it as a draft for client meetings.")
         )
         safe_name = customer_input.company_name.replace(" ", "_")
         st.download_button(
-            label="📄 PDF 다운로드 – EA Cookbook",
+            label=_("📄 PDF 다운로드 – EA Cookbook", "📄 Download PDF – EA Cookbook"),
             data=pdf_bytes,
             file_name=f"EA_Cookbook_{safe_name}.pdf",
             mime="application/pdf",
-            width="stretch",
+            use_container_width=True,
         )

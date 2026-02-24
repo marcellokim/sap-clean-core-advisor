@@ -28,7 +28,7 @@ def _valid_row() -> dict[str, object]:
 class DataQualityTests(unittest.TestCase):
     def test_valid_rows_pass_quality_gate(self) -> None:
         rows = [_valid_row(), {**_valid_row(), "company_id": "C2"}]
-        with patch.dict(os.environ, {"CALIBRATION_MIN_SAMPLES": "2"}):
+        with patch.multiple("config.settings.settings", CALIBRATION_MIN_SAMPLES=2):
             result = validate_calibration_rows(rows)
         self.assertTrue(result.ok)
         self.assertEqual(result.accepted_rows, 2)
@@ -36,13 +36,13 @@ class DataQualityTests(unittest.TestCase):
     def test_missing_column_fails_quality_gate(self) -> None:
         bad = _valid_row()
         del bad["industry"]
-        with patch.dict(os.environ, {"CALIBRATION_MIN_SAMPLES": "1"}):
+        with patch.multiple("config.settings.settings", CALIBRATION_MIN_SAMPLES=1):
             result = validate_calibration_rows([bad])
         self.assertFalse(result.ok)
         self.assertTrue(any("missing columns" in err for err in result.errors))
 
     def test_insufficient_samples_fails_quality_gate(self) -> None:
-        with patch.dict(os.environ, {"CALIBRATION_MIN_SAMPLES": "3"}):
+        with patch.multiple("config.settings.settings", CALIBRATION_MIN_SAMPLES=3):
             result = validate_calibration_rows([_valid_row(), {**_valid_row(), "company_id": "C2"}])
         self.assertFalse(result.ok)
         self.assertTrue(any("insufficient samples" in err for err in result.errors))

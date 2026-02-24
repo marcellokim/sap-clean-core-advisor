@@ -78,13 +78,11 @@ class RulesetLoaderTests(unittest.TestCase):
                 encoding="utf-8",
             )
 
-            with patch.dict(
-                os.environ,
-                {
-                    "RULESET_DIR": str(root),
-                    "RULESET_GENERATED_DIR": str(root / "generated"),
-                    "RULESET_ALLOW_GENERATED": "true",
-                },
+            with patch.multiple(
+                "config.settings.settings",
+                RULESET_DIR=str(root),
+                RULESET_GENERATED_DIR=str(root / "generated"),
+                RULESET_ALLOW_GENERATED=True,
             ):
                 resolve_ruleset_profile.cache_clear()
                 resolution = resolve_ruleset_profile("제조")
@@ -96,12 +94,10 @@ class RulesetLoaderTests(unittest.TestCase):
             root = Path(td) / "rulesets"
             root.mkdir(parents=True)
             (root / "base.yaml").write_text(json.dumps(_payload("base")), encoding="utf-8")
-            with patch.dict(
-                os.environ,
-                {
-                    "RULESET_DIR": str(root),
-                    "RULESET_GENERATED_DIR": str(root / "generated"),
-                },
+            with patch.multiple(
+                "config.settings.settings",
+                RULESET_DIR=str(root),
+                RULESET_GENERATED_DIR=str(root / "generated"),
             ):
                 resolve_ruleset_profile.cache_clear()
                 resolution = resolve_ruleset_profile("unknown-industry")

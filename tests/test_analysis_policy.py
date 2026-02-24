@@ -97,10 +97,10 @@ class AnalysisPolicyTests(unittest.TestCase):
         mock_llm: object,
         _mock_pdf: object,
     ) -> None:
-        with patch.dict(
-            "os.environ",
-            {"LLM_PROVIDER": "glm", "GLM_API_KEY": "dummy"},
-            clear=False,
+        with patch.multiple(
+            "config.settings.settings",
+            LLM_PROVIDER="glm",
+            GLM_API_KEY="dummy",
         ):
             result = run_analysis(
                 _sample_input(),

@@ -9,6 +9,7 @@ import unittest
 from models.schemas import CustomerInput, ModuleInfo
 from services.cost_calculator import RULESET_VERSION, calculate_tco, run_calculation
 from services.ruleset_loader import resolve_ruleset_profile
+from config.settings import settings
 
 
 def _sample_input(**overrides: object) -> CustomerInput:
@@ -38,15 +39,15 @@ def _sample_input(**overrides: object) -> CustomerInput:
 class CostCalculatorTests(unittest.TestCase):
     def setUp(self) -> None:
         self._tmp_dir = tempfile.TemporaryDirectory()
-        self._old_generated = os.environ.get("RULESET_GENERATED_DIR")
-        os.environ["RULESET_GENERATED_DIR"] = self._tmp_dir.name
+        self._old_generated = settings.RULESET_GENERATED_DIR
+        settings.RULESET_GENERATED_DIR = self._tmp_dir.name
         resolve_ruleset_profile.cache_clear()
 
     def tearDown(self) -> None:
         if self._old_generated is None:
-            os.environ.pop("RULESET_GENERATED_DIR", None)
+            settings.RULESET_GENERATED_DIR = ""
         else:
-            os.environ["RULESET_GENERATED_DIR"] = self._old_generated
+            settings.RULESET_GENERATED_DIR = self._old_generated
         resolve_ruleset_profile.cache_clear()
         self._tmp_dir.cleanup()
 

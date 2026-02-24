@@ -2,7 +2,11 @@
 
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass
+from pathlib import Path
+
+import yaml
 
 from models.schemas import CustomerInput
 from services.cost_calculator import CalculationResult
@@ -17,42 +21,64 @@ class RecommendationTrace:
     input_facts: list[str]
 
 
-def format_customer_info(inp: CustomerInput) -> str:
+_LOCALES_CACHE: dict[str, dict[str, str]] = {}
+
+
+def _get_locales(lang: str) -> dict[str, str]:
+    if lang not in _LOCALES_CACHE:
+        locales_dir = Path(__file__).parent.parent.parent / "config" / "locales"
+        yaml_file = locales_dir / f"{lang}.yaml"
+        if not yaml_file.exists():
+            # fallback to korean
+            yaml_file = locales_dir / "ko.yaml"
+        if yaml_file.exists():
+            with yaml_file.open("r", encoding="utf-8") as f:
+                _LOCALES_CACHE[lang] = yaml.safe_load(f) or {}
+        else:
+            _LOCALES_CACHE[lang] = {}
+    return _LOCALES_CACHE[lang]
+
+
+def format_customer_info(inp: CustomerInput, lang: str = "ko") -> str:
     """Format customer input for report payload."""
+    locales = _get_locales(lang)
     modules_str = ", ".join(f"{m.module_name}({m.customization_level})" for m in inp.modules)
-    return (
-        f"회사명: {inp.company_name}\n"
-        f"업종: {inp.industry}\n"
-        f"ERP 버전: {inp.erp_version}\n"
-        f"DB: {inp.db_type} ({inp.db_size_gb:,.0f} GB)\n"
-        f"사용자 수: {inp.num_users:,}명\n"
-        f"커스텀 프로그램 수: {inp.num_custom_programs:,}개\n"
-        f"커스텀 코드 비중: {inp.custom_code_ratio}%\n"
-        f"사용 모듈(커스텀 심각도): {modules_str}\n"
-        f"연간 IT 예산: {inp.annual_it_budget_krw}억원\n"
-        f"희망 전환 기간: {inp.migration_timeline_months}개월\n"
-        f"주요 고충: {inp.pain_points}"
-    )
+    return "\n".join([
+        locales.get("INFO_COMPANY", "Company: {val}").format(val=inp.company_name),
+        locales.get("INFO_INDUSTRY", "Industry: {val}").format(val=inp.industry),
+        locales.get("INFO_ERP", "ERP Version: {val}").format(val=inp.erp_version),
+        locales.get("INFO_DB", "DB: {type} ({size} GB)").format(type=inp.db_type, size=f"{inp.db_size_gb:,.0f}"),
+        locales.get("INFO_USERS", "Users: {val:,}").format(val=inp.num_users),
+        locales.get("INFO_CUSTOM_PROG", "Custom Programs: {val:,}").format(val=inp.num_custom_programs),
+        locales.get("INFO_CUSTOM_RATIO", "Custom Code Ratio: {val}%").format(val=inp.custom_code_ratio),
+        locales.get("INFO_MODULES", "Modules: {val}").format(val=modules_str),
+        locales.get("INFO_BUDGET", "Annual IT Budget: {val}").format(val=inp.annual_it_budget_krw),
+        locales.get("INFO_TIMELINE", "Desired Timeline: {val}").format(val=inp.migration_timeline_months),
+        locales.get("INFO_PAIN_POINTS", "Pain Points: {val}").format(val=inp.pain_points),
+    ])
 
 
-def extract_recommendations(calc: CalculationResult, inp: CustomerInput) -> list[RecommendationTrace]:
+def extract_recommendations(calc: CalculationResult, inp: CustomerInput, lang: str = "ko") -> list[RecommendationTrace]:
     """Build deterministic recommendation traces from input + calc."""
+    locales = _get_locales(lang)
     traces: list[RecommendationTrace] = []
 
-    def _append(text: str, rule_id: str, facts: list[str]) -> None:
+    def _append(msg_key: str, rule_id: str, facts: list[str], **kwargs: object) -> None:
+        text_template = locales.get(msg_key, msg_key)
         traces.append(
             RecommendationTrace(
-                text=text,
+                text=text_template.format(**kwargs),
                 rule_ids=[rule_id],
                 input_facts=[fact for fact in facts if fact],
             )
         )
 
-    base_score_fact = f"Clean Core Score {calc.clean_core_score:.1f}/100"
-    base_tco_fact = (
-        f"3년 누적 절감/증가 {calc.tco_savings_3yr:.2f}억원 "
-        f"(현재 {calc.current_annual_tco:.2f}억원 → 전환 후 {calc.projected_tco_after_migration:.2f}억원)"
-    )
+    def _fact(fact_key: str, **kwargs: object) -> str:
+        return locales.get(fact_key, fact_key).format(**kwargs)
+
+    base_score_fact = _fact("FACT_CLEAN_CORE_SCORE", score=calc.clean_core_score)
+    base_tco_fact = _fact("FACT_TCO_SAVINGS", savings=calc.tco_savings_3yr, current=calc.current_annual_tco, projected=calc.projected_tco_after_migration)
+
     budget_ratio = (
         calc.current_annual_tco / inp.annual_it_budget_krw
         if inp.annual_it_budget_krw > 0
@@ -61,94 +87,87 @@ def extract_recommendations(calc: CalculationResult, inp: CustomerInput) -> list
 
     if calc.clean_core_score < 30:
         _append(
-            "Clean Core 점수가 매우 낮습니다. 커스텀 코드 대규모 정리를 최우선으로 추진하세요.",
             "REC_SCORE_LT_30",
-            [base_score_fact, f"커스텀 코드 비중 {inp.custom_code_ratio}%"],
+            "REC_SCORE_LT_30",
+            [base_score_fact, _fact("FACT_CUSTOM_RATIO", ratio=inp.custom_code_ratio)],
         )
     elif calc.clean_core_score < 60:
         _append(
-            "Clean Core 개선 여지가 큽니다. 사용하지 않는 Z-code 폐기부터 시작하세요.",
             "REC_SCORE_LT_60",
-            [base_score_fact, f"커스텀 프로그램 {inp.num_custom_programs:,}개"],
+            "REC_SCORE_LT_60",
+            [base_score_fact, _fact("FACT_CUSTOM_PROGRAMS", count=inp.num_custom_programs)],
         )
 
     if "ECC" in inp.erp_version:
         _append(
-            f"현재 {inp.erp_version}은 Business Suite 7 메인스트림 유지보수 종료(2027-12-31)에 해당합니다. "
-            "RISE with SAP 기반 S/4HANA 전환 계획을 수립하세요.",
             "REC_BS7_MAINSTREAM_END_2027",
-            [f"ERP 버전 {inp.erp_version}", "BS7 메인스트림 종료일: 2027-12-31"],
+            "REC_BS7_MAINSTREAM_END_2027",
+            [_fact("FACT_ERP_VERSION", version=inp.erp_version), _fact("FACT_BS7_MAINSTREAM")],
+            erp_version=inp.erp_version,
         )
         _append(
-            "Extended Maintenance 옵션(2030-12-31)도 존재하지만, 비용/가치 관점에서 임시 완충책으로만 검토하세요.",
             "INFO_BS7_EXTENDED_MAINT_AVAILABLE_2030",
-            ["BS7 Extended Maintenance 가능 시점: 2030-12-31"],
+            "INFO_BS7_EXTENDED_MAINT_AVAILABLE_2030",
+            [_fact("FACT_BS7_EXTENDED")],
         )
 
     if "HANA" not in inp.db_type.upper():
         _append(
-            "SAP HANA로의 DB 마이그레이션을 전환 계획에 포함하세요. "
-            "인메모리 처리로 분석 성능이 10-100배 향상됩니다.",
             "REC_DB_TO_HANA",
-            [f"현재 DB {inp.db_type}", f"DB 크기 {inp.db_size_gb:,.0f}GB"],
+            "REC_DB_TO_HANA",
+            [_fact("FACT_CURRENT_DB", db_type=inp.db_type), _fact("FACT_DB_SIZE", size=f"{inp.db_size_gb:,.0f}")],
         )
 
     if inp.custom_code_ratio > 40:
         _append(
-            "커스텀 코드 비중이 높습니다. SAP Custom Code Migration Worklist로 "
-            "Retire/Replace/Refactor 대상을 분류하세요.",
             "REC_CUSTOM_RATIO_OVER_40",
-            [f"커스텀 코드 비중 {inp.custom_code_ratio}%", f"Z-code {inp.num_custom_programs:,}개"],
+            "REC_CUSTOM_RATIO_OVER_40",
+            [_fact("FACT_CUSTOM_RATIO", ratio=inp.custom_code_ratio), _fact("FACT_Z_CODE", count=inp.num_custom_programs)],
         )
 
     if calc.tco_savings_3yr > 0:
         _append(
-            f"Clean Core 전환 시 3년간 약 {calc.tco_savings_3yr}억원 절감이 예상됩니다. "
-            "경영진 보고에 이 수치를 활용하세요.",
+            "REC_TCO_SAVINGS_POSITIVE",
             "REC_TCO_SAVINGS_POSITIVE",
             [base_tco_fact],
+            tco_savings_3yr=calc.tco_savings_3yr,
         )
 
     if budget_ratio is not None:
         if budget_ratio >= 1.0:
             _append(
-                "현재 운영 TCO가 연간 IT 예산을 초과합니다. "
-                "고비용 모듈 우선 정리와 단계적 전환으로 비용 급증 리스크를 제어하세요.",
                 "REC_BUDGET_RATIO_OVER_100",
-                [f"TCO/예산 비율 {budget_ratio:.2f}"],
+                "REC_BUDGET_RATIO_OVER_100",
+                [_fact("FACT_TCO_BUDGET_RATIO", ratio=budget_ratio)],
             )
         elif budget_ratio >= 0.7:
             _append(
-                "현재 운영 TCO가 연간 IT 예산의 70% 이상입니다. "
-                "비핵심 커스텀 정리와 인프라 최적화 과제를 우선 실행하세요.",
                 "REC_BUDGET_RATIO_OVER_70",
-                [f"TCO/예산 비율 {budget_ratio:.2f}"],
+                "REC_BUDGET_RATIO_OVER_70",
+                [_fact("FACT_TCO_BUDGET_RATIO", ratio=budget_ratio)],
             )
 
     high_custom_modules = [m.module_name for m in inp.modules if m.customization_level == "high"]
     if high_custom_modules:
         _append(
-            f"{', '.join(high_custom_modules)} 모듈의 핵심 커스텀은 "
-            "SAP BTP Side-by-Side Extension으로 재구축을 검토하세요.",
             "REC_HIGH_CUSTOM_MODULE_BTP",
-            [f"High 커스텀 모듈: {', '.join(high_custom_modules)}"],
+            "REC_HIGH_CUSTOM_MODULE_BTP",
+            [_fact("FACT_HIGH_CUSTOM", modules=", ".join(high_custom_modules))],
+            high_custom_modules=", ".join(high_custom_modules),
         )
 
     if inp.migration_timeline_months < 18 and len(inp.modules) > 5:
         _append(
-            "모듈 수 대비 전환 기간이 촉박합니다. "
-            "FI/CO 우선 전환 후 나머지를 단계적으로 진행하는 Phased Approach를 권고합니다.",
             "REC_TIMELINE_TIGHT_PHASED",
-            [f"전환 기간 {inp.migration_timeline_months}개월", f"모듈 수 {len(inp.modules)}개"],
+            "REC_TIMELINE_TIGHT_PHASED",
+            [_fact("FACT_TIMELINE", months=inp.migration_timeline_months), _fact("FACT_MODULE_COUNT", count=len(inp.modules))],
         )
 
     if not traces:
         _append(
-            "핵심 모듈별로 표준 프로세스 적합성(Fit-to-Standard)을 먼저 점검하고 "
-            "필수 커스텀만 남기는 정리 계획을 수립하세요.",
+            "REC_DEFAULT_BASELINE",
             "REC_DEFAULT_BASELINE",
             [base_score_fact],
         )
 
     return traces
-
