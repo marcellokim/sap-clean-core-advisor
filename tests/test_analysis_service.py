@@ -66,6 +66,7 @@ class AnalysisServiceTests(unittest.TestCase):
         self._tmp_dir.cleanup()
 
     @patch("services.application.analysis_runner.FPDFRenderer.render", return_value=b"%PDF-test")
+    @patch("services.application.analysis_runner.ChromaRAGProvider.__init__", return_value=None)
     @patch(
         "services.application.analysis_runner.ChromaRAGProvider.get_context_bundle",
         return_value=RAGContextBundle(
@@ -82,6 +83,7 @@ class AnalysisServiceTests(unittest.TestCase):
         self,
         _mock_llm: object,
         _mock_rag: object,
+        _mock_rag_init: object,
         _mock_pdf: object,
     ) -> None:
         result = analyze_customer_input(_sample_input())
@@ -102,6 +104,7 @@ class AnalysisServiceTests(unittest.TestCase):
         self.assertIsNotNone(result.pdf_bytes)
 
     @patch("services.application.analysis_runner.FPDFRenderer.render", return_value=b"%PDF-test")
+    @patch("services.application.analysis_runner.ChromaRAGProvider.__init__", return_value=None)
     @patch(
         "services.application.analysis_runner.ChromaRAGProvider.get_context_bundle",
         return_value=RAGContextBundle(
@@ -121,6 +124,7 @@ class AnalysisServiceTests(unittest.TestCase):
         self,
         _mock_llm: object,
         _mock_rag: object,
+        _mock_rag_init: object,
         _mock_pdf: object,
     ) -> None:
         result = analyze_customer_input(_sample_input())
@@ -134,6 +138,7 @@ class AnalysisServiceTests(unittest.TestCase):
         self.assertGreaterEqual(result.output.llm_cost_estimate_usd, 0.0)
 
     @patch("services.application.analysis_runner.FPDFRenderer.render", return_value=b"%PDF-test")
+    @patch("services.application.analysis_runner.ChromaRAGProvider.__init__", return_value=None)
     @patch(
         "services.application.analysis_runner.ChromaRAGProvider.get_context_bundle",
         return_value=RAGContextBundle(
@@ -150,6 +155,7 @@ class AnalysisServiceTests(unittest.TestCase):
         self,
         _mock_llm: object,
         _mock_rag: object,
+        _mock_rag_init: object,
         _mock_pdf: object,
     ) -> None:
         result = analyze_customer_input(_sample_input(industry="UnknownVertical"))

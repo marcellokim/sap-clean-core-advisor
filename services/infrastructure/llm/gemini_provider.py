@@ -164,7 +164,7 @@ def _extract_usage_map(response: Any) -> dict[str, Any]:
             usage_candidates.append(usage_meta)
         token_usage = response_meta.get("token_usage")
         if isinstance(token_usage, dict):
-            usage_candidates.append(usage_usage)
+            usage_candidates.append(token_usage)
 
     for usage in usage_candidates:
         normalized = normalize_usage_metadata(usage)

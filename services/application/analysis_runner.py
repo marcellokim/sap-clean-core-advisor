@@ -331,7 +331,10 @@ def run_analysis(
                 import concurrent.futures
                 with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
                     future = executor.submit(provider.generate_report, payload)
-                    sections = future.result(timeout=effective_policy.timeout_ms / 1000.0)
+                    if effective_policy.timeout_ms > 0:
+                        sections = future.result(timeout=effective_policy.timeout_ms / 1000.0)
+                    else:
+                        sections = future.result()
                 generation_mode = "llm"
                 generation_error_code = None
                 llm_status = "ok"
@@ -351,7 +354,7 @@ def run_analysis(
             except Exception as exc:  # pragma: no cover - defensive
                 generation_mode = "fallback"
                 generation_error_code = ERR_LLM_PROVIDER
-                llm_status = "error" if isinstance(exc, concurrent.futures.TimeoutError) else "fallback"
+                llm_status = "fallback"
                 if effective_policy.use_circuit_breaker:
                     _LLM_BREAKER.record_failure()
                 logger.warning("Unknown LLM provider/Timeout failure. Using fallback report: %s", exc)

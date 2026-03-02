@@ -36,10 +36,12 @@ def _sample_input() -> CustomerInput:
 class AnalysisPolicyTests(unittest.TestCase):
     @patch("services.application.analysis_runner.FPDFRenderer.render", return_value=b"%PDF-test")
     @patch("services.application.analysis_runner.GeminiLLMProvider.generate_report")
+    @patch("services.application.analysis_runner.ChromaRAGProvider.__init__", return_value=None)
     @patch("services.application.analysis_runner.ChromaRAGProvider.get_context_bundle")
     def test_deterministic_mode_skips_rag_and_llm(
         self,
         mock_rag: object,
+        _mock_rag_init: object,
         mock_llm: object,
         _mock_pdf: object,
     ) -> None:
@@ -60,6 +62,7 @@ class AnalysisPolicyTests(unittest.TestCase):
         "services.application.analysis_runner.GeminiLLMProvider.generate_report",
         return_value=ReportSections(executive_summary="LLM EXEC", detailed_report="LLM DETAIL"),
     )
+    @patch("services.application.analysis_runner.ChromaRAGProvider.__init__", return_value=None)
     @patch(
         "services.application.analysis_runner.ChromaRAGProvider.get_context_bundle",
         return_value=RAGContextBundle(context="[출처: x]\nctx", sources=["x"], chunk_count=1),
@@ -67,6 +70,7 @@ class AnalysisPolicyTests(unittest.TestCase):
     def test_hybrid_mode_runs_rag_and_llm(
         self,
         mock_rag: object,
+        _mock_rag_init: object,
         mock_llm: object,
         _mock_pdf: object,
     ) -> None:
@@ -87,6 +91,7 @@ class AnalysisPolicyTests(unittest.TestCase):
         "services.application.analysis_runner.GLMLLMProvider.generate_report",
         return_value=ReportSections(executive_summary="GLM EXEC", detailed_report="GLM DETAIL"),
     )
+    @patch("services.application.analysis_runner.ChromaRAGProvider.__init__", return_value=None)
     @patch(
         "services.application.analysis_runner.ChromaRAGProvider.get_context_bundle",
         return_value=RAGContextBundle(context="[출처: x]\nctx", sources=["x"], chunk_count=1),
@@ -94,6 +99,7 @@ class AnalysisPolicyTests(unittest.TestCase):
     def test_hybrid_mode_runs_glm_provider_when_selected(
         self,
         mock_rag: object,
+        _mock_rag_init: object,
         mock_llm: object,
         _mock_pdf: object,
     ) -> None:

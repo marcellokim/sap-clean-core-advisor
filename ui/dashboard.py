@@ -10,7 +10,6 @@ import streamlit as st
 import plotly.graph_objects as go
 
 from models.schemas import AdvisorOutput, CustomerInput
-from services.error_codes import ERR_LLM_PROVIDER
 from ui.locales import _
 
 # ────────────────────────────────────────────────────────────────────
@@ -210,59 +209,14 @@ def render_dashboard(
     )
 
     if output.generation_mode == "llm":
-        provider = output.generation_provider or "unknown"
-        st.success(_(f"🤖 AI 생성 리포트 ({provider})", f"🤖 AI Generated Report ({provider})"))
+        st.success(_("🤖 AI 생성 리포트", "🤖 AI Generated Report"))
     else:
-        reason = output.generation_error_code or ERR_LLM_PROVIDER
-        if output.llm_status == "skipped":
-            st.info(_(f"🧩 규칙 기반 리포트(정책상 LLM 단계 스킵) (코드: {reason})", f"🧩 Rule-based Report (LLM skipped by policy) (Code: {reason})"))
-        else:
-            st.warning(
-                _(f"🧩 규칙 기반 리포트(LLM 쿼터/오류로 폴백) (코드: {reason})", f"🧩 Rule-based Report (LLM fallback due to error/quota) (Code: {reason})")
+        st.info(
+            _(
+                "🧩 규칙 기반 리포트(자동 전환) - 일부 AI 단계 이슈가 있어 안정 모드 결과를 제공합니다.",
+                "🧩 Rule-based report (auto fallback) - Stability mode was used due to issues in an AI stage.",
             )
-    st.caption(f"analysis_mode: {output.analysis_mode}")
-    status_col1, status_col2, status_col3 = st.columns(3)
-    with status_col1:
-        st.metric("RAG", output.rag_status.upper())
-    with status_col2:
-        st.metric("LLM", output.llm_status.upper())
-    with status_col3:
-        st.metric("PDF", output.pdf_status.upper())
-    st.caption(
-        f"analysis_id: {output.analysis_id} | ruleset: {output.ruleset_version} "
-        f"({output.ruleset_profile_id}/{output.ruleset_profile_source})"
-    )
-    if output.ruleset_profile_source == "generated" and output.calibration_quality:
-        quality_text = ", ".join(
-            f"{k}={v:.4f}" for k, v in output.calibration_quality.items()
         )
-        st.caption(f"calibration_quality: {quality_text}")
-    else:
-        st.caption("calibration_quality: baseline ruleset (project-specific calibration not applied)")
-    if output.stage_metrics_ms:
-        metrics_text = ", ".join(
-            f"{key}={value}ms" for key, value in output.stage_metrics_ms.items()
-        )
-        st.caption(f"stage_metrics: {metrics_text}")
-    if output.llm_usage_tokens:
-        usage = output.llm_usage_tokens
-        st.caption(
-            "llm_usage: "
-            f"source={output.llm_usage_source}, "
-            f"prompt={usage.get('prompt_tokens', 0)}, "
-            f"output={usage.get('output_tokens', 0)}, "
-            f"total={usage.get('total_tokens', 0)}"
-        )
-        st.caption(f"llm_cost_per_run_estimate: ${output.llm_cost_estimate_usd:.8f}")
-    if output.llm_monthly_projection_usd:
-        top_projection_keys = [k for k in ("1000_runs", "10000_runs") if k in output.llm_monthly_projection_usd]
-        if not top_projection_keys:
-            top_projection_keys = sorted(output.llm_monthly_projection_usd.keys())[:2]
-        projection_text = ", ".join(
-            f"{key}=${output.llm_monthly_projection_usd[key]:.6f}"
-            for key in top_projection_keys
-        )
-        st.caption(f"llm_monthly_projection: {projection_text}")
 
     # ── 핵심 KPI 카드 ──
     kpi1, kpi2, kpi3, kpi4 = st.columns(4)

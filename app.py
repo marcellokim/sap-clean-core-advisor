@@ -4,28 +4,22 @@
 """
 
 import io
-import os
 import zipfile
 from pathlib import Path
 
 import streamlit as st
 
 from models.schemas import CustomerInput
-from services.analysis_service import AnalysisPolicy, run_analysis
+from services.analysis_service import run_analysis
 from services.infrastructure.rag.chroma_provider import get_cached_vector_store
 from ui.dashboard import render_dashboard
 from ui.input_form import render_input_form
+from ui.policy import get_locked_analysis_policy
 from config.settings import settings
 from ui.locales import _
 
 DOCS_ROOT = Path(__file__).resolve().parent / "docs"
 LOGO_PATH = Path(__file__).resolve().parent / "data" / "assets" / "sap_logo.svg"
-
-
-def _is_true(value: str | None) -> bool:
-    if value is None:
-        return False
-    return value.strip().lower() in {"1", "true", "t", "yes", "y", "on"}
 
 
 def _current_llm_provider() -> str:
@@ -114,16 +108,6 @@ with st.sidebar:
         """
     st.markdown(_(target_persona_ko, target_persona_en))
     st.divider()
-    selected_mode = st.selectbox(
-        _("Analysis Mode", "Analysis Mode"),
-        options=["deterministic", "hybrid", "llm_only"],
-        index=0,
-        help=_(
-            "deterministic: 규칙 기반만 실행\nhybrid: 규칙+RAG+LLM 시도 후 폴백\nllm_only: 데모/실험용 모드",
-            "deterministic: Rule-based only\nhybrid: Rule+RAG+LLM with fallback\nllm_only: Demo/Experimental mode"
-        ),
-    )
-    st.divider()
     pack_lang = st.selectbox(
         _("EA Support Pack Language", "EA Support Pack Language"),
         options=["KO", "EN", "ALL"],
@@ -136,13 +120,6 @@ with st.sidebar:
         file_name=f"EA_Support_Pack_{pack_lang}.zip",
         mime="application/zip",
         width="stretch",
-    )
-    st.divider()
-    provider = _current_llm_provider()
-    provider_label = "GLM-5" if provider in {"glm", "glm-5", "zhipu"} else "Gemini"
-    st.caption(
-        f"Built with Streamlit • LangChain • {provider_label} • ChromaDB\n\n"
-        + _("Reducing complexity and operational costs\nthrough intelligent automation.", "Reducing complexity and operational costs\nthrough intelligent automation.")
     )
 
 
@@ -192,7 +169,7 @@ def main() -> None:
 
     with st.spinner(_("🔄 AI가 SAP Clean Core 분석을 수행하고 있습니다... (약 30-60초 소요)", "🔄 AI is performing Clean Core Analysis... (Approx. 30-60s)")):
         try:
-            policy = AnalysisPolicy.from_env(analysis_mode=selected_mode)
+            policy = get_locked_analysis_policy()
             # Fetch strings in requested language
             lang = st.session_state.get("ui_lang", "KO").lower()
             analysis_result = run_analysis(customer_input, policy=policy, lang=lang)
