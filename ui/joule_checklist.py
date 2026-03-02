@@ -44,22 +44,29 @@ def render_joule_checklist(generate_gap_analysis_callback: Callable[[list[str], 
     unchecked_items_list = []
 
     # UI 렌더링
-    for category, items in checklist_items.items():
-        st.markdown(f"#### {category}")
-        for item in items:
-            # st.checkbox를 사용하고 상태를 업데이트
-            is_checked = st.checkbox(
-                item, 
-                value=st.session_state.joule_checklist_state[category][item],
-                key=f"joule_chk_{item}"
-            )
-            st.session_state.joule_checklist_state[category][item] = is_checked
-            
-            if is_checked:
-                checked_items_list.append(item)
-            else:
-                unchecked_items_list.append(item)
-        st.divider()
+    st.markdown("---")
+    col1, col2 = st.columns(2)
+    categories = list(checklist_items.keys())
+    
+    for idx, category in enumerate(categories):
+        target_col = col1 if idx % 2 == 0 else col2
+        items = checklist_items[category]
+        with target_col:
+            st.markdown(f"**{category}**")
+            with st.container(border=True):
+                for item in items:
+                    is_checked = st.checkbox(
+                        item, 
+                        value=st.session_state.joule_checklist_state[category][item],
+                        key=f"joule_chk_{item}"
+                    )
+                    st.session_state.joule_checklist_state[category][item] = is_checked
+                    
+                    if is_checked:
+                        checked_items_list.append(item)
+                    else:
+                        unchecked_items_list.append(item)
+            st.markdown("<br>", unsafe_allow_html=True)
 
     checked_count = len(checked_items_list)
     progress_val = checked_count / total_items if total_items > 0 else 0.0

@@ -92,15 +92,17 @@ CIO와 경영진을 위한 설득력 있는 비즈니스 문서를 작성하라.
 ## SECTION 1: EXECUTIVE SUMMARY
 경영진을 위한 1장짜리 핵심 요약. 마크다운의 인용구(>)나 강조(**)를 적극 활용하여 시각적으로 돋보이게 작성하라.
 - **최종 진단 (One-line Summary)**: 현재 상태에 대한 강력한 한 줄 요약
-- **핵심 비즈니스 리스크 (Key Risks)**: 2-3가지의 주요 위험 요소
+- **핵심 비즈니스 리스크 (Key Risks)**: 고객의 '주요 고충사항(Pain Points)'과 연결된 2-3가지 위험 요소
 - **재무적 기대 효과 (Expected ROI)**: 반드시 주어진 TCO와 절감액 데이터를 포함하여 서술
 - **즉각적 조치 권고사항 (Immediate Actions)**: 실행 가능한 3가지 전략 조치
 
 ## SECTION 2: DETAILED REPORT
 상세 분석 리포트. 논리적인 헤더와 글머리 기호를 사용하여 가독성을 극대화하라.
-- 1. 레거시 현황 분석 (Current Landscape)
+- 1. 비즈니스 고충 및 레거시 현황 분석 (Current Landscape & Pain Points)
 - 2. Clean Core 아키텍처 평가 (Clean Core Assessment)
+     * 특히 입력된 '사용 모듈 및 커스텀 심각도'를 바탕으로 기술 부채를 구체적으로 분석할 것.
 - 3. RISE with SAP 전환 로드맵 (Transition Strategy)
+     * BTP(Business Technology Platform)를 활용한 Side-by-Side 확장 전략을 구체적으로 제언할 것.
 - 4. TCO 및 비즈니스 케이스 (Business Case)
 - 5. 리스크 억제 방안 (Risk Mitigation)
 - 6. 결론 및 Next Steps
@@ -134,14 +136,16 @@ SINGLE_PASS_SYSTEM = """\
 
 ## SECTION 1: EXECUTIVE SUMMARY
 - **최종 진단**: 현재 시스템 상태에 대한 임팩트 있는 한 줄 요약
-- **핵심 비즈니스 리스크**: {risk_factors}를 바탕으로 한 2~3가지 리스크
+- **핵심 비즈니스 리스크**: {risk_factors} 및 고객의 '주요 고충사항(Pain Points)'을 연결한 2~3가지 리스크
 - **재무적 기대 효과**: 3년 절감액 및 TCO 데이터를 포함한 ROI 요약
 - **즉각적 조치 권고**: 당장 실행해야 할 3가지 Action Items
 
 ## SECTION 2: DETAILED REPORT
-- 1. 현황 및 기술 부채 분석 (Current State & Tech Debt)
-- 2. Clean Core 준수도 평가 (Clean Core Assessment)
-- 3. S/4HANA 전환 전략 및 로드맵 (Migration Strategy)
+- 1. 비즈니스 고충 및 현황 분석 (Current State & Pain Points)
+- 2. Clean Core 준수도 및 모듈별 커스텀 평가 (Clean Core Assessment)
+     * 모듈 복잡도 지표를 바탕으로 왜 Clean Core 점수가 이렇게 나왔는지 설명할 것.
+- 3. S/4HANA 및 BTP 기반 전환 로드맵 (Migration & BTP Strategy)
+     * Side-by-Side Extensibility 등 구체적인 아키텍처 전환 방안을 제시할 것.
 - 4. 비즈니스 케이스 및 TCO (Business Case & TCO)
 - 5. 리스크 대응 및 Next Steps
 

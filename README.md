@@ -16,9 +16,13 @@
 4. 팀 운영 ad hoc 지원  
 - 주간 리포트/미팅 프리체크/문서 QA 템플릿 제공
 
----
+## 1. Core Feature: Joule Readiness AI Gap Analysis (📌 NEW)
+포트폴리오 고도화를 통해 **"Joule Activation 사전 점검 체크리스트"** 기능이 추가되었습니다.
+EA 인턴으로서 기술 도입 과정의 병목을 파악하고 경영진을 설득하는 역량을 보여주기 위해 기획되었습니다.
 
-## 1. Deliverables (실물 결과물)
+*   **인터랙티브 UI**: SAP S/4HANA Private Cloud 환경 기반 필수 선결 과제(인프라, 보안, 테스트 등) 점검
+*   **Gemini 2.5 Flash 기반 갭 분석**: 고객이 체크하지 않은 항목의 위험도를 즉시 분석하고, "경영진 요약(Executive Summary)" 및 "Actionable Recommendations"를 포함한 한국어 컨설팅 리포트 자동 생성
+*   **프리미엄 대시보드 UI**: SaaS 수준의 모던 CSS가 적용된 결과 화면 제공
 
 ### EA Cookbook
 - `docs/ea-cookbook/EA_Cookbook_Template_KO.md`
@@ -137,4 +141,3 @@ make test
 ### SAP Community
 - [Joule Setup & Activation Guide](https://community.sap.com/t5/enterprise-resource-planning-blog-posts-by-sap/setup-and-activation-guide-joule-in-sap-s-4hana-private-cloud/ba-p/14325221)
 - [Clean Core Extensibility](https://community.sap.com/t5/enterprise-resource-planning-blog-posts-by-sap/clean-core-extensibility-balancing-standardization-and-differentiation/ba-p/14260149)
-

@@ -20,7 +20,7 @@ class Settings(BaseSettings):
     LLM_MODEL: str = ""
     LLM_DISABLE: bool = False
     LLM_PIPELINE_MODE: str = "single"
-    LLM_MAX_OUTPUT_TOKENS: int = 2048
+    LLM_MAX_OUTPUT_TOKENS: int = 4096
     LLM_MAX_RETRIES: int = 2
     LLM_BASE_DELAY_SEC: int = 5
     LLM_HTTP_TIMEOUT_SEC: int = 45

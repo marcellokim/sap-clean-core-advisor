@@ -151,11 +151,20 @@ def _classify_pdf_error(exc: Exception) -> str:
 
 
 def _build_report_payload(
-    customer_info: str,
+    inp: CustomerInput,
     calc: CalculationResult,
     recommendations: list[str],
     rag_context: str,
 ) -> ReportPayload:
+    # 고객 정보 강화 (Pain Points 및 모듈 복잡도 추가)
+    module_details = ", ".join([f"{m.module_name}({m.customization_level})" for m in inp.modules])
+    customer_info = (
+        f"회사: {inp.company_name}, 업종: {inp.industry}, "
+        f"ERP: {inp.erp_version}, DB: {inp.db_type} ({inp.db_size_gb}GB)\n"
+        f"사용 모듈 및 커스텀 심각도: {module_details}\n"
+        f"주요 고충사항 (Pain Points): {inp.pain_points}"
+    )
+
     return ReportPayload(
         customer_info=customer_info,
         clean_core_score=calc.clean_core_score,
@@ -280,7 +289,7 @@ def run_analysis(
             logger.warning("RAG context unavailable, continuing without it: [%s] %s", rag_error_code, exc)
     stage_metrics_ms["rag_ms"] = _elapsed_ms(rag_start)
 
-    payload = _build_report_payload(customer_info, calc, recommendations, rag_context)
+    payload = _build_report_payload(customer_input, calc, recommendations, rag_context)
     fallback_sections = _build_fallback_reports(customer_input, calc, recommendations)
     sections = fallback_sections
 
