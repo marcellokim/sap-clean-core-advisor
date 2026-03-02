@@ -172,7 +172,7 @@ def _render_tco_chart(
         mode="lines+markers+text",
         line={"color": SAP_GREEN, "width": 3, "dash": "dot"},
         marker={"size": 10},
-        text=[_("{+}억", "{+}B").format(f"{v:+.1f}") for v in cumulative_savings],
+        text=[_("{}억", "{}B").format(f"{v:+.1f}") for v in cumulative_savings],
         textposition="top center",
         yaxis="y2",
     ))
@@ -219,21 +219,46 @@ def render_dashboard(
         )
 
     # ── 핵심 KPI 카드 ──
+    # ── 핵심 KPI 카드 ──
+    # 프리미엄 KPI 위젯 스타일
+    st.markdown("""
+    <style>
+    div[data-testid="metric-container"] {
+        background-color: white;
+        border: 1px solid #E9ECEF;
+        padding: 5% 5% 5% 10%;
+        border-radius: 12px;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.04);
+        border-left: 5px solid #0070F2;
+    }
+    div[data-testid="metric-container"] label {
+        color: #6C757D !important;
+        font-weight: 600;
+        font-size: 0.9rem;
+    }
+    div[data-testid="metric-container"] div[data-testid="stMetricValue"] {
+        font-size: 1.8rem;
+        font-weight: 800;
+        color: #1B2559;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+    
     kpi1, kpi2, kpi3, kpi4 = st.columns(4)
     with kpi1:
-        st.metric("Clean Core Score", f"{output.clean_core_score:.1f} / 100")
+        st.metric("Clean Core Score 🏆", f"{output.clean_core_score:.1f} / 100")
     with kpi2:
-        st.metric(_("현재 연간 TCO 추정치", "Current Annual TCO Estimate"), _("{}억원", "{}B").format(f"{output.current_annual_tco:.1f}"))
+        st.metric(_("현재 연간 TCO 📉", "Current Annual TCO 📉"), _("{}억원", "{}B").format(f"{output.current_annual_tco:.1f}"))
     with kpi3:
         delta_tco = output.projected_tco_after_migration - output.current_annual_tco
         st.metric(
-            _("전환 후 TCO 추정치", "Projected TCO After Transition"),
+            _("전환 후 TCO 예상 📊", "Projected TCO 📊"),
             _("{}억원", "{}B").format(f"{output.projected_tco_after_migration:.1f}"),
-            delta=_("{+}억원", "{+}B").format(f"{delta_tco:+.1f}"),
+            delta=_("{}억원", "{}B").format(f"{delta_tco:+.1f}"),
             delta_color="inverse",
         )
     with kpi4:
-        st.metric(_("3년 누적 절감", "3-Year Cumulative Savings"), _("{}억원", "{}B").format(f"{output.tco_savings_3yr:.1f}"))
+        st.metric(_("3년 누적 TCO 절감 💰", "3-Year TCO Savings 💰"), _("{}억원", "{}B").format(f"{output.tco_savings_3yr:.1f}"))
 
     # ── 리스크 수준 배지 ──
     risk_color = RISK_COLORS.get(output.risk_level, SAP_ORANGE)

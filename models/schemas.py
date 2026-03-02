@@ -143,22 +143,6 @@ class AdvisorOutput(BaseModel):
         default_factory=dict,
         description="룰셋 보정 품질 메트릭 (예: mape_tco, risk_agreement)",
     )
-    llm_usage_source: Literal["provider", "estimated", "none"] = Field(
-        default="none",
-        description="LLM 토큰 사용량 출처(provider/estimated/none)",
-    )
-    llm_usage_tokens: dict[str, int] = Field(
-        default_factory=dict,
-        description="LLM 토큰 사용량(prompt/output/total)",
-    )
-    llm_cost_estimate_usd: float = Field(
-        default=0.0,
-        description="요청 1회 기준 LLM 비용 추정치(USD)",
-    )
-    llm_monthly_projection_usd: dict[str, float] = Field(
-        default_factory=dict,
-        description="월간 호출 수 시나리오별 LLM 비용 추정치(USD)",
-    )
     validation_warnings: list[str] = Field(
         default_factory=list,
         description="입력/해석 품질 관련 비치명 경고",
@@ -170,4 +154,21 @@ class AdvisorOutput(BaseModel):
     evidence_ledger: list[EvidenceItem] = Field(
         default_factory=list,
         description="권고사항별 근거 체인",
+    )
+
+
+class GapAnalysisOutput(BaseModel):
+    """Joule 도입 준비도 갭 분석 결과"""
+
+    identified_gaps: list[str] = Field(
+        description="미체크 항목을 기반으로 식별된 주요 준비도 결함(Gap)",
+    )
+    recommended_actions: list[str] = Field(
+        description="식별된 Gap을 해소하기 위한 구체적인 액션 아이템",
+    )
+    risk_level: Literal["High", "Medium", "Low"] = Field(
+        description="현재 준비 상태의 리스크 수준",
+    )
+    executive_summary: str = Field(
+        description="임원 보고용 요약 (3~5문장)",
     )

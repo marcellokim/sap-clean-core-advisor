@@ -97,10 +97,6 @@ class AnalysisServiceTests(unittest.TestCase):
         self.assertIn("calc_ms", result.output.stage_metrics_ms)
         self.assertIn("total_ms", result.output.stage_metrics_ms)
         self.assertTrue(result.output.executive_summary)
-        self.assertEqual(result.output.llm_usage_source, "estimated")
-        self.assertGreater(result.output.llm_usage_tokens.get("total_tokens", 0), 0)
-        self.assertGreaterEqual(result.output.llm_cost_estimate_usd, 0.0)
-        self.assertIn("1000_runs", result.output.llm_monthly_projection_usd)
         self.assertIsNotNone(result.pdf_bytes)
 
     @patch("services.application.analysis_runner.FPDFRenderer.render", return_value=b"%PDF-test")
@@ -134,9 +130,6 @@ class AnalysisServiceTests(unittest.TestCase):
         self.assertEqual(result.output.detailed_report, "LLM DETAIL")
         self.assertTrue(result.output.evidence_ledger)
         self.assertIn("llm_ms", result.output.stage_metrics_ms)
-        self.assertGreater(result.output.llm_usage_tokens.get("total_tokens", 0), 0)
-        self.assertGreaterEqual(result.output.llm_cost_estimate_usd, 0.0)
-
     @patch("services.application.analysis_runner.FPDFRenderer.render", return_value=b"%PDF-test")
     @patch("services.application.analysis_runner.ChromaRAGProvider.__init__", return_value=None)
     @patch(

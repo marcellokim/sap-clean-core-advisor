@@ -7,8 +7,7 @@ from urllib import error, request
 
 from config.settings import settings
 from services.error_codes import ERR_LLM_AUTH, ERR_LLM_PROVIDER, ERR_LLM_RATE_LIMIT
-from services.llm_cost import estimate_usage_from_payload, normalize_usage_metadata
-from services.llm_provider import LLMProviderError, ReportPayload, ReportSections
+from services.llm_provider import LLMProviderError, ReportPayload, ReportSections, LLMUsage
 from services.infrastructure.llm.base_provider import BaseLLMProvider
 
 DEFAULT_GLM_MODEL = "glm-5"
@@ -124,10 +123,7 @@ class GLMLLMProvider(BaseLLMProvider):
         if not report_text.strip():
             raise LLMProviderError(ERR_LLM_PROVIDER, "Empty content from GLM response")
 
-        usage_raw = parsed.get("usage", {})
-        usage = normalize_usage_metadata(usage_raw)
-        if usage.total_tokens <= 0:
-            usage = estimate_usage_from_payload(payload, report_text)
+        usage = LLMUsage()
 
         sections = self._split_sections(report_text)
         return ReportSections(

@@ -36,13 +36,7 @@ from services.error_codes import (
 from services.infrastructure.llm.gemini_provider import GeminiLLMProvider
 from services.infrastructure.llm.glm_provider import GLMLLMProvider
 from services.infrastructure.pdf.fpdf_renderer import FPDFRenderer
-from services.infrastructure.policy.circuit_breaker import CircuitBreaker
 from services.infrastructure.rag.chroma_provider import ChromaRAGProvider
-from services.llm_cost import (
-    build_monthly_projection,
-    estimate_cost_usd,
-    estimate_usage_from_payload,
-)
 from services.llm_provider import LLMProvider, LLMProviderError, LLMUsage, ReportPayload, ReportSections
 from services.rag_pipeline import RAGContextBundle
 from services.ruleset_loader import resolve_ruleset_profile
@@ -65,7 +59,6 @@ class AnalysisPolicy:
     rag_enabled: bool = True
     llm_enabled: bool = True
     timeout_ms: int = 0
-    use_circuit_breaker: bool = True
 
     @staticmethod
     def _is_true(value: str | None) -> bool:
@@ -85,7 +78,6 @@ class AnalysisPolicy:
             rag_enabled=settings.RAG_ENABLE,
             llm_enabled=not settings.LLM_DISABLE,
             timeout_ms=settings.ANALYSIS_TIMEOUT_MS,
-            use_circuit_breaker=settings.ANALYSIS_USE_CIRCUIT_BREAKER,
         )
 
 
@@ -99,14 +91,7 @@ class AnalysisResult:
     pdf_error_message: str | None
 
 
-_LLM_BREAKER = CircuitBreaker(
-    failure_threshold=settings.LLM_CB_FAILURE_THRESHOLD,
-    open_seconds=settings.LLM_CB_OPEN_SEC,
-)
-_RAG_BREAKER = CircuitBreaker(
-    failure_threshold=settings.RAG_CB_FAILURE_THRESHOLD,
-    open_seconds=settings.RAG_CB_OPEN_SEC,
-)
+_LLM_MAX_RETRIES = settings.LLM_MAX_RETRIES
 
 
 def _elapsed_ms(start_ts: float) -> int:
@@ -278,29 +263,21 @@ def run_analysis(
     )
     rag_start = time.perf_counter()
     if should_try_rag and not _timeout_hit(total_start, effective_policy.timeout_ms):
-        if effective_policy.use_circuit_breaker and not _RAG_BREAKER.can_execute():
-            rag_status = "skipped"
+        try:
+            rag_provider = ChromaRAGProvider()
+            rag_bundle = rag_provider.get_context_bundle(
+                erp_version=customer_input.erp_version,
+                modules=[m.module_name for m in customer_input.modules],
+                pain_points=customer_input.pain_points,
+            )
+            rag_context = rag_bundle.context
+            rag_status = "ok"
+        except Exception as exc:
+            rag_status = "failed"
             rag_error_code = ERR_RAG_UNAVAILABLE
-        else:
-            try:
-                rag_provider = ChromaRAGProvider()
-                rag_bundle = rag_provider.get_context_bundle(
-                    erp_version=customer_input.erp_version,
-                    modules=[m.module_name for m in customer_input.modules],
-                    pain_points=customer_input.pain_points,
-                )
-                rag_context = rag_bundle.context
-                rag_status = "ok"
-                if effective_policy.use_circuit_breaker:
-                    _RAG_BREAKER.record_success()
-            except Exception as exc:
-                rag_status = "failed"
-                rag_error_code = ERR_RAG_UNAVAILABLE
-                if effective_policy.use_circuit_breaker:
-                    _RAG_BREAKER.record_failure()
-                if not settings.RAG_OFFLINE_ALLOW:
-                    raise
-                logger.warning("RAG context unavailable, continuing without it: [%s] %s", rag_error_code, exc)
+            if not settings.RAG_OFFLINE_ALLOW:
+                raise
+            logger.warning("RAG context unavailable, continuing without it: [%s] %s", rag_error_code, exc)
     stage_metrics_ms["rag_ms"] = _elapsed_ms(rag_start)
 
     payload = _build_report_payload(customer_info, calc, recommendations, rag_context)
@@ -321,52 +298,33 @@ def run_analysis(
     if should_try_llm and not _timeout_hit(total_start, effective_policy.timeout_ms):
         provider_name = _select_provider_name()
         generation_provider = provider_name
-        if effective_policy.use_circuit_breaker and not _LLM_BREAKER.can_execute():
-            generation_error_code = ERR_LLM_RATE_LIMIT
-            llm_status = "skipped"
-        else:
-            try:
-                provider = _create_llm_provider(provider_name)
-                generation_provider = provider.provider_name
-                import concurrent.futures
-                with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
-                    future = executor.submit(provider.generate_report, payload)
-                    if effective_policy.timeout_ms > 0:
-                        sections = future.result(timeout=effective_policy.timeout_ms / 1000.0)
-                    else:
-                        sections = future.result()
-                generation_mode = "llm"
-                generation_error_code = None
-                llm_status = "ok"
-                llm_usage = sections.usage
-                if effective_policy.use_circuit_breaker:
-                    _LLM_BREAKER.record_success()
-            except LLMProviderError as exc:
-                generation_mode = "fallback"
-                if exc.code == ERR_PROVIDER_NOT_SUPPORTED:
-                    generation_error_code = ERR_PROVIDER_NOT_SUPPORTED
+        try:
+            provider = _create_llm_provider(provider_name)
+            generation_provider = provider.provider_name
+            import concurrent.futures
+            with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+                future = executor.submit(provider.generate_report, payload)
+                if effective_policy.timeout_ms > 0:
+                    sections = future.result(timeout=effective_policy.timeout_ms / 1000.0)
                 else:
-                    generation_error_code = _normalize_llm_error_code(exc.code)
-                llm_status = "fallback"
-                if effective_policy.use_circuit_breaker:
-                    _LLM_BREAKER.record_failure()
-                logger.warning("LLM provider failed. Using fallback report: [%s] %s", exc.code, exc)
-            except Exception as exc:  # pragma: no cover - defensive
-                generation_mode = "fallback"
-                generation_error_code = ERR_LLM_PROVIDER
-                llm_status = "fallback"
-                if effective_policy.use_circuit_breaker:
-                    _LLM_BREAKER.record_failure()
-                logger.warning("Unknown LLM provider/Timeout failure. Using fallback report: %s", exc)
+                    sections = future.result()
+            generation_mode = "llm"
+            generation_error_code = None
+            llm_status = "ok"
+        except LLMProviderError as exc:
+            generation_mode = "fallback"
+            if exc.code == ERR_PROVIDER_NOT_SUPPORTED:
+                generation_error_code = ERR_PROVIDER_NOT_SUPPORTED
+            else:
+                generation_error_code = _normalize_llm_error_code(exc.code)
+            llm_status = "fallback"
+            logger.warning("LLM provider failed. Using fallback report: [%s] %s", exc.code, exc)
+        except Exception as exc:  # pragma: no cover - defensive
+            generation_mode = "fallback"
+            generation_error_code = ERR_LLM_PROVIDER
+            llm_status = "fallback"
+            logger.warning("Unknown LLM provider/Timeout failure. Using fallback report: %s", exc)
     stage_metrics_ms["llm_ms"] = _elapsed_ms(llm_start)
-
-    if generation_mode != "llm" or llm_usage.total_tokens <= 0:
-        llm_usage = estimate_usage_from_payload(
-            payload,
-            f"{sections.executive_summary}\n\n{sections.detailed_report}",
-        )
-    llm_cost_estimate_usd = estimate_cost_usd(llm_usage)
-    llm_monthly_projection_usd = build_monthly_projection(llm_cost_estimate_usd)
 
     evidence_ledger = build_evidence_ledger(recommendation_traces, generation_mode, rag_bundle)
     validation_warnings = list(ruleset_resolution.warnings)
@@ -403,13 +361,9 @@ def run_analysis(
         ruleset_profile_source=calc.ruleset_profile_source,
         calibration_quality=calc.calibration_quality,
         llm_usage_source=llm_usage.source,
-        llm_usage_tokens={
-            "prompt_tokens": llm_usage.prompt_tokens,
-            "output_tokens": llm_usage.output_tokens,
-            "total_tokens": llm_usage.total_tokens,
-        },
-        llm_cost_estimate_usd=llm_cost_estimate_usd,
-        llm_monthly_projection_usd=llm_monthly_projection_usd,
+        llm_usage_tokens={},
+        llm_cost_estimate_usd=0.0,
+        llm_monthly_projection_usd={},
         validation_warnings=validation_warnings,
         stage_metrics_ms=stage_metrics_ms,
         evidence_ledger=evidence_ledger,
@@ -459,13 +413,7 @@ def run_analysis(
         "ruleset_profile_id": calc.ruleset_profile_id,
         "ruleset_profile_source": calc.ruleset_profile_source,
         "calibration_quality": calc.calibration_quality,
-        "llm_usage_source": llm_usage.source,
-        "llm_usage_tokens": {
-            "prompt_tokens": llm_usage.prompt_tokens,
-            "output_tokens": llm_usage.output_tokens,
-            "total_tokens": llm_usage.total_tokens,
-        },
-        "llm_cost_estimate_usd": llm_cost_estimate_usd,
+        "llm_cost_estimate_usd": 0.0,
         "stage_metrics_ms": stage_metrics_ms,
         "evidence_count": len(evidence_ledger),
     }

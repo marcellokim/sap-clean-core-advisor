@@ -10,13 +10,12 @@ from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.runnables import Runnable
 
 from config.settings import settings
-from services.llm_cost import estimate_usage_from_inputs, estimate_usage_from_payload, normalize_usage_metadata
 from services.llm_provider import LLMUsage, ReportPayload, ReportSections
 from services.infrastructure.llm.base_provider import BaseLLMProvider
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_MODEL = "gemini-2.0-flash-lite"
+DEFAULT_MODEL = "gemini-2.5-flash"
 DEFAULT_PIPELINE_MODE = "single"
 
 ANALYST_SYSTEM = """\
@@ -69,9 +68,9 @@ SAP 공식 가이드의 내용을 근거로 활용하되, 고객의 구체적 �
 """
 
 REPORTER_SYSTEM = """\
-너는 20년차 SAP Enterprise Architect이며, 최종 보고서를 작성한다.
+너는 20년차 SAP Enterprise Architect이자 글로벌 최고 컨설턴트이며, 최종 보고서를 작성한다.
 CIO와 경영진을 위한 설득력 있는 비즈니스 문서를 작성하라.
-한국어로 작성하라.
+반드시 한국어로 작성하며 전문적인 컨설팅 펌의 어조(격식 있고 명확한 문체)를 유지하라.
 
 [고객 정보]
 {customer_info}
@@ -91,29 +90,28 @@ CIO와 경영진을 위한 설득력 있는 비즈니스 문서를 작성하라.
 두 개의 섹션을 작성하라:
 
 ## SECTION 1: EXECUTIVE SUMMARY
-경영진을 위한 1장짜리 핵심 요약.
-- 현재 상태 한 줄 요약
-- 핵심 리스크 2-3개
-- 전환 시 기대 효과 (반드시 숫자 포함)
-- 즉시 실행 권고사항 (Action Items)
-형식: Markdown, 간결하고 임팩트 있게.
+경영진을 위한 1장짜리 핵심 요약. 마크다운의 인용구(>)나 강조(**)를 적극 활용하여 시각적으로 돋보이게 작성하라.
+- **최종 진단 (One-line Summary)**: 현재 상태에 대한 강력한 한 줄 요약
+- **핵심 비즈니스 리스크 (Key Risks)**: 2-3가지의 주요 위험 요소
+- **재무적 기대 효과 (Expected ROI)**: 반드시 주어진 TCO와 절감액 데이터를 포함하여 서술
+- **즉각적 조치 권고사항 (Immediate Actions)**: 실행 가능한 3가지 전략 조치
 
 ## SECTION 2: DETAILED REPORT
-상세 분석 리포트.
-- 1. 현황 분석
-- 2. Clean Core 평가
-- 3. 전환 전략 및 로드맵
-- 4. TCO 분석
-- 5. 리스크 관리 방안
-- 6. 결론 및 다음 단계
-형식: Markdown, 구조화되고 전문적인 톤.
+상세 분석 리포트. 논리적인 헤더와 글머리 기호를 사용하여 가독성을 극대화하라.
+- 1. 레거시 현황 분석 (Current Landscape)
+- 2. Clean Core 아키텍처 평가 (Clean Core Assessment)
+- 3. RISE with SAP 전환 로드맵 (Transition Strategy)
+- 4. TCO 및 비즈니스 케이스 (Business Case)
+- 5. 리스크 억제 방안 (Risk Mitigation)
+- 6. 결론 및 Next Steps
 
 EXECUTIVE SUMMARY와 DETAILED REPORT를 반드시 "---SECTION_SEPARATOR---"로 구분하라.
 """
 
 SINGLE_PASS_SYSTEM = """\
-너는 20년차 SAP Enterprise Architect이며, SAP Clean Core 사전진단 결과를 최종 보고서 형태로 작성한다.
-한국어로 작성하고, 숫자를 우선으로 사용하라.
+너는 20년차 SAP Enterprise Architect이자 글로벌 최고 컨설턴트이며, SAP Clean Core 사전진단 결과를 최종 보고서 형태로 작성한다.
+반드시 한국어로 작성하고, 경영진이 주목할 수 있도록 데이터와 숫자를 전면에 배치하라.
+마크다운의 인용구(>)나 굵은 글씨(**)를 적극 활용하여 전문적인 보고서 양식을 갖춰라.
 
 [고객 정보]
 {customer_info}
@@ -135,45 +133,22 @@ SINGLE_PASS_SYSTEM = """\
 아래 두 섹션을 정확히 생성하라.
 
 ## SECTION 1: EXECUTIVE SUMMARY
-- 현재 상태 한 줄 요약
-- 핵심 리스크 2~3개
-- 기대 효과(반드시 수치 포함)
-- 즉시 실행 Action 3개
+- **최종 진단**: 현재 시스템 상태에 대한 임팩트 있는 한 줄 요약
+- **핵심 비즈니스 리스크**: {risk_factors}를 바탕으로 한 2~3가지 리스크
+- **재무적 기대 효과**: 3년 절감액 및 TCO 데이터를 포함한 ROI 요약
+- **즉각적 조치 권고**: 당장 실행해야 할 3가지 Action Items
 
 ## SECTION 2: DETAILED REPORT
-- 1. 현황 분석
-- 2. Clean Core 평가
-- 3. 전환 전략 및 단계
-- 4. TCO 분석
-- 5. 리스크 대응
-- 6. 다음 단계
+- 1. 현황 및 기술 부채 분석 (Current State & Tech Debt)
+- 2. Clean Core 준수도 평가 (Clean Core Assessment)
+- 3. S/4HANA 전환 전략 및 로드맵 (Migration Strategy)
+- 4. 비즈니스 케이스 및 TCO (Business Case & TCO)
+- 5. 리스크 대응 및 Next Steps
 
 두 섹션을 반드시 "---SECTION_SEPARATOR---"로 구분하라.
 """
 
 def _extract_usage_map(response: Any) -> dict[str, Any]:
-    usage_candidates: list[dict[str, Any]] = []
-    direct_usage = getattr(response, "usage_metadata", None)
-    if isinstance(direct_usage, dict):
-        usage_candidates.append(direct_usage)
-
-    response_meta = getattr(response, "response_metadata", None)
-    if isinstance(response_meta, dict):
-        usage_meta = response_meta.get("usage_metadata")
-        if isinstance(usage_meta, dict):
-            usage_candidates.append(usage_meta)
-        token_usage = response_meta.get("token_usage")
-        if isinstance(token_usage, dict):
-            usage_candidates.append(token_usage)
-
-    for usage in usage_candidates:
-        normalized = normalize_usage_metadata(usage)
-        if normalized.total_tokens > 0:
-            return {
-                "prompt_tokens": normalized.prompt_tokens,
-                "output_tokens": normalized.output_tokens,
-                "total_tokens": normalized.total_tokens,
-            }
     return {}
 
 class GeminiLLMProvider(BaseLLMProvider):
@@ -220,18 +195,7 @@ class GeminiLLMProvider(BaseLLMProvider):
                 raise LLMProviderError(ERR_LLM_PROVIDER, str(e))
 
         text = self._extract_text(getattr(response, "content", response))
-        normalized_usage = normalize_usage_metadata(_extract_usage_map(response))
-        if normalized_usage.total_tokens > 0:
-            return (
-                text,
-                LLMUsage(
-                    prompt_tokens=normalized_usage.prompt_tokens,
-                    output_tokens=normalized_usage.output_tokens,
-                    total_tokens=normalized_usage.total_tokens,
-                    source="provider",
-                ),
-            )
-        return (text, estimate_usage_from_inputs(inputs, text))
+        return (text, LLMUsage())
 
     def _invoke_generate(self, payload: ReportPayload) -> ReportSections:
         if self._pipeline_mode == "three_chain":
@@ -259,8 +223,7 @@ class GeminiLLMProvider(BaseLLMProvider):
         }
         report, usage = self._invoke_text_with_usage(chain, inputs)
         sections = self._split_sections(report)
-        if usage.total_tokens <= 0:
-            usage = estimate_usage_from_payload(payload, report)
+        usage = LLMUsage()
         
         return ReportSections(
             executive_summary=sections.executive_summary,
@@ -322,30 +285,7 @@ class GeminiLLMProvider(BaseLLMProvider):
         report, usage_reporter = self._invoke_text_with_usage(reporter_chain, report_inputs)
         sections = self._split_sections(report)
 
-        total_usage = LLMUsage(
-            prompt_tokens=(
-                usage_analyst.prompt_tokens
-                + usage_architect.prompt_tokens
-                + usage_reporter.prompt_tokens
-            ),
-            output_tokens=(
-                usage_analyst.output_tokens
-                + usage_architect.output_tokens
-                + usage_reporter.output_tokens
-            ),
-            total_tokens=(
-                usage_analyst.total_tokens
-                + usage_architect.total_tokens
-                + usage_reporter.total_tokens
-            ),
-            source=(
-                "provider"
-                if all(u.source == "provider" for u in (usage_analyst, usage_architect, usage_reporter))
-                else "estimated"
-            ),
-        )
-        if total_usage.total_tokens <= 0:
-            total_usage = estimate_usage_from_payload(payload, report)
+        total_usage = LLMUsage()
 
         return ReportSections(
             executive_summary=sections.executive_summary,

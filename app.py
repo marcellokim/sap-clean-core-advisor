@@ -64,6 +64,86 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
+# 고급 UI/UX를 위한 글로벌 CSS 주입
+st.markdown("""
+<style>
+    /* 전체 폰트 및 배경색 변경 */
+    html, body, [class*="css"] {
+        font-family: 'Inter', 'Noto Sans KR', sans-serif !important;
+    }
+    .stApp {
+        background-color: #F8F9FA;
+    }
+    
+    /* 사이드바 스타일링 */
+    [data-testid="stSidebar"] {
+        background-color: #ffffff;
+        border-right: 1px solid #E9ECEF;
+        padding-top: 2rem;
+    }
+    [data-testid="stSidebar"] h2, [data-testid="stSidebar"] h3 {
+        color: #0070F2; /* SAP 공식 블루 사용 */
+        font-weight: 700;
+    }
+    
+    /* 메인 타이틀 아름답게 꾸미기 */
+    h1 {
+        font-weight: 800 !important;
+        background: -webkit-linear-gradient(45deg, #0070F2, #00B1F2);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        padding-bottom: 5px;
+    }
+    
+    /* 탭 디자인 오버라이드 */
+    .stTabs [data-baseweb="tab-list"] {
+        gap: 8px;
+        background-color: #ffffff;
+        padding: 5px 10px;
+        border-radius: 12px;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+    }
+    .stTabs [data-baseweb="tab"] {
+        padding-top: 10px;
+        padding-bottom: 10px;
+        padding-left: 20px;
+        padding-right: 20px;
+        border-radius: 8px;
+        transition: all 0.2s ease-in-out;
+    }
+    .stTabs [aria-selected="true"] {
+        background-color: #EBF5FF !important;
+        color: #0070F2 !important;
+        font-weight: 700;
+    }
+    
+    /* 버튼 스타일 (프리미엄 룩) */
+    .stButton > button {
+        border-radius: 8px !important;
+        font-weight: 600 !important;
+        transition: all 0.2s;
+        border: none !important;
+    }
+    .stButton > button:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(0, 112, 242, 0.2);
+    }
+    
+    /* 카드형 컨테이너 (위젯 박스) */
+    div[data-testid="stExpander"] {
+        border: 1px solid #E9ECEF !important;
+        border-radius: 12px !important;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.02) !important;
+        background-color: white !important;
+    }
+    div[data-testid="stExpander"] > summary {
+        background-color: #F8F9FA !important;
+        border-radius: 12px 12px 0 0 !important;
+        font-weight: 600;
+    }
+</style>
+""", unsafe_allow_html=True)
+
 # ────────────────────────────────────────────────────────────────────
 # 사이드바
 # ────────────────────────────────────────────────────────────────────
@@ -134,6 +214,7 @@ def main() -> None:
         except Exception:
             pass
 
+    # 기본 메인 상단 타이틀
     st.markdown(
         "<h1 style='text-align:center;'>🏗️ RISE with SAP: Clean Core Assessment</h1>"
         "<p style='text-align:center; color:gray;'>"
@@ -141,6 +222,54 @@ def main() -> None:
         "</p>",
         unsafe_allow_html=True,
     )
+
+    tab_cc, tab_joule = st.tabs([
+        _("🔍 Clean Core Assessment", "🔍 Clean Core Assessment"),
+        _("🤖 Joule Readiness Checklist", "🤖 Joule Readiness Checklist")
+    ])
+
+    with tab_cc:
+        _render_clean_core_tab()
+
+    with tab_joule:
+        from ui.joule_checklist import render_joule_checklist
+        from services.domain.joule_readiness_engine import generate_joule_gap_analysis
+
+        def _handle_gap_analysis(checked: list[str], unchecked: list[str]):
+            with st.spinner(_("🧠 AI가 Gap Analysis 리포트를 작성 중입니다...", "🧠 AI is compiling the Gap Analysis Report...")):
+                result = generate_joule_gap_analysis(checked, unchecked)
+                
+                st.markdown("---")
+                st.subheader(_("📊 Joule Readiness Gap Analysis 리포트", "📊 Joule Readiness Gap Analysis Report"))
+                
+                # 리스크 뱃지
+                risk_colors = {"High": "#BB0000", "Medium": "#E76500", "Low": "#36A41D"}
+                color = risk_colors.get(result.risk_level, "#36A41D")
+                st.markdown(
+                    f"<div style='margin-bottom: 12px;'>"
+                    f"<span style='background:{color}; color:white; padding:4px 12px; "
+                    f"border-radius:12px; font-weight:bold;'>"
+                    + _("리스크 수준: ", "Risk Level: ") + f"{result.risk_level}</span></div>",
+                    unsafe_allow_html=True,
+                )
+
+                st.markdown(f"**Executive Summary:**\n{result.executive_summary}\n")
+                
+                col1, col2 = st.columns(2)
+                with col1:
+                    st.markdown("**🚨 식별된 결함 (Identified Gaps):**")
+                    for gap in result.identified_gaps:
+                        st.markdown(f"- {gap}")
+                with col2:
+                    st.markdown("**🛠️ 조치 권고 (Recommended Actions):**")
+                    for action in result.recommended_actions:
+                        st.markdown(f"- {action}")
+                        
+        render_joule_checklist(_handle_gap_analysis)
+
+
+def _render_clean_core_tab() -> None:
+    """메인 Clean Core 분석 탭"""
 
     customer_input: CustomerInput | None = render_input_form()
 
