@@ -116,6 +116,7 @@ class AnalysisServiceTests(unittest.TestCase):
             detailed_report="LLM DETAIL",
         ),
     )
+    @patch.dict(os.environ, {"ANALYSIS_MODE": "llm_only"})
     def test_llm_mode_when_provider_succeeds(
         self,
         _mock_llm: object,

@@ -35,6 +35,9 @@ GAP_ANALYSIS_PROMPT = """\
 출력은 반드시 JSON 형식만을 반환하세요 (마크다운 포맷팅 ```json 없이).
 """
 
+import streamlit as st
+
+@st.cache_data(ttl=3600, show_spinner=False)
 def generate_joule_gap_analysis(checked_items: list[str], unchecked_items: list[str]) -> GapAnalysisOutput:
     """LLM을 호출하여 미체크 항목 기반 갭 분석 리포트를 생성합니다."""
     

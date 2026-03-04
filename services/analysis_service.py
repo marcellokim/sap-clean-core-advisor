@@ -17,9 +17,39 @@ from services.domain.validation_engine import (
 )
 
 
+import streamlit as st
+
+@st.cache_data(ttl=3600, show_spinner=False)
+def analyze_customer_input_cached(customer_input_dict: dict, lang: str = "ko", policy_dict: dict | None = None):
+    """Cached wrapper for run_analysis to improve UI responsiveness.
+    Takes dict inputs instead of objects because Pydantic models with varying
+    run times can sometimes break Streamlit caching due to serialization.
+    """
+    from models.schemas import CustomerInput
+    inp = CustomerInput(**customer_input_dict)
+    
+    if policy_dict:
+        pol = AnalysisPolicy(**policy_dict)
+    else:
+        pol = AnalysisPolicy.from_env()
+        
+    return run_analysis(inp, policy=pol, lang=lang)
+
 def analyze_customer_input(customer_input, lang: str = "ko"):
     """Backward-compatible entrypoint for existing callers."""
-    return run_analysis(customer_input, policy=AnalysisPolicy.from_env(), lang=lang)
+    import dataclasses
+    import os
+    from services.application.analysis_runner import AnalysisPolicy
+    
+    # Bypass cache if testing
+    if os.environ.get("DISABLE_CACHE") == "1":
+        return run_analysis(customer_input, policy=AnalysisPolicy.from_env(), lang=lang)
+        
+    return analyze_customer_input_cached(
+        customer_input.model_dump(), 
+        lang=lang,
+        policy_dict=dataclasses.asdict(AnalysisPolicy.from_env())
+    )
 
 
 __all__ = [

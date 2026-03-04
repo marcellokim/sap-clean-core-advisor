@@ -236,8 +236,11 @@ def main() -> None:
         from services.domain.joule_readiness_engine import generate_joule_gap_analysis
 
         def _handle_gap_analysis(checked: list[str], unchecked: list[str]):
-            with st.spinner(_("🧠 AI가 Gap Analysis 리포트를 작성 중입니다...", "🧠 AI is compiling the Gap Analysis Report...")):
+            status_msg = _("🧠 AI가 Gap Analysis 리포트를 작성 중입니다...", "🧠 AI is compiling the Gap Analysis Report...")
+            with st.status(status_msg, expanded=True) as status:
+                st.write(_("고객 데이터 룰셋 매핑 중...", "Mapping customer data to rulesets..."))
                 result = generate_joule_gap_analysis(checked, unchecked)
+                status.update(label=_("✅ 분석 완료!", "✅ Analysis Complete!"), state="complete", expanded=False)
                 
                 st.markdown("---")
                 st.subheader(_("📊 Joule Readiness Gap Analysis 리포트", "📊 Joule Readiness Gap Analysis Report"))
@@ -296,12 +299,20 @@ def _render_clean_core_tab() -> None:
         st.info(_(info_ko, info_en))
         return
 
-    with st.spinner(_("🔄 AI가 SAP Clean Core 분석을 수행하고 있습니다... (약 30-60초 소요)", "🔄 AI is performing Clean Core Analysis... (Approx. 30-60s)")):
+    status_msg = _(
+        "🔄 AI가 SAP Clean Core 분석을 수행하고 있습니다... (캐시된 결과가 없다면 약 30-60초 소요)",
+        "🔄 AI is performing Clean Core Analysis... (Approx 30-60s if not cached)"
+    )
+    with st.status(status_msg, expanded=True) as status:
         try:
+            st.write(_("고객 데이터 룰셋 매핑 중...", "Mapping customer data to rulesets..."))
             policy = get_locked_analysis_policy()
-            # Fetch strings in requested language
             lang = st.session_state.get("ui_lang", "KO").lower()
-            analysis_result = run_analysis(customer_input, policy=policy, lang=lang)
+            
+            st.write(_("비용 계산 및 AI 로드맵 생성 (RAG/LLM)...", "Running TCO calculation and AI generation (RAG/LLM)..."))
+            # Use the newly added cached wrapper avoiding serialization issues
+            from services.analysis_service import analyze_customer_input
+            analysis_result = analyze_customer_input(customer_input, lang=lang)
             output = analysis_result.output
             pdf_bytes = analysis_result.pdf_bytes
         except Exception as e:
@@ -315,14 +326,17 @@ def _render_clean_core_tab() -> None:
 
             if key_missing:
                 st.error(
-                    _("분석 중 오류가 발생했습니다.\n\n선택한 LLM provider API 키가 .env 파일에 설정되어 있는지 확인하세요.",
+                    _("분석 중 오류가 발생했습니다.\n\n선택한 LLM provider API 키가 .env 파이에 설정되어 있는지 확인하세요.",
                       "An error occurred during analysis.\n\nPlease check if LLM provider API key is set in .env file.")
                 )
             else:
                 st.error(_("분석 중 오류가 발생했습니다. 네트워크 상태 또는 API 한도를 확인하세요.", "An error occurred during analysis. Check network or API limits."))
                 if err_msg:
                     st.caption(_(f"상세 오류: {err_msg}", f"Error Details: {err_msg}"))
+            status.update(label=_("분석 실패", "Analysis Failed"), state="error", expanded=True)
             return
+
+        status.update(label=_("✅ 분석 완료!", "✅ Analysis Complete!"), state="complete", expanded=False)
 
     if analysis_result.pdf_error_code:
         st.warning(
