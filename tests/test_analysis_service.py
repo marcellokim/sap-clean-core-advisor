@@ -44,9 +44,11 @@ class AnalysisServiceTests(unittest.TestCase):
         self._old_generated = settings.RULESET_GENERATED_DIR
         self._old_generated_flag = settings.RULESET_ALLOW_GENERATED
         self._old_mode = settings.ANALYSIS_MODE
+        self._old_disable_cache = os.environ.get("DISABLE_CACHE")
         settings.RULESET_GENERATED_DIR = self._tmp_dir.name
         settings.RULESET_ALLOW_GENERATED = False
         settings.ANALYSIS_MODE = "hybrid"
+        os.environ["DISABLE_CACHE"] = "1"
         resolve_ruleset_profile.cache_clear()
 
     def tearDown(self) -> None:
@@ -62,6 +64,10 @@ class AnalysisServiceTests(unittest.TestCase):
             settings.ANALYSIS_MODE = "deterministic"
         else:
             settings.ANALYSIS_MODE = self._old_mode
+        if self._old_disable_cache is None:
+            os.environ.pop("DISABLE_CACHE", None)
+        else:
+            os.environ["DISABLE_CACHE"] = self._old_disable_cache
         resolve_ruleset_profile.cache_clear()
         self._tmp_dir.cleanup()
 
@@ -116,7 +122,7 @@ class AnalysisServiceTests(unittest.TestCase):
             detailed_report="LLM DETAIL",
         ),
     )
-    @patch.dict(os.environ, {"ANALYSIS_MODE": "llm_only"})
+    @patch.object(settings, "ANALYSIS_MODE", "llm_only")
     def test_llm_mode_when_provider_succeeds(
         self,
         _mock_llm: object,
