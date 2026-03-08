@@ -61,6 +61,7 @@ class AnalysisPolicyTests(unittest.TestCase):
         mock_llm.assert_not_called()
 
     @patch("services.application.analysis_runner.FPDFRenderer.render", return_value=b"%PDF-test")
+    @patch("services.application.analysis_runner.GeminiLLMProvider.__init__", return_value=None)
     @patch(
         "services.application.analysis_runner.GeminiLLMProvider.generate_report",
         return_value=ReportSections(executive_summary="LLM EXEC", detailed_report="LLM DETAIL"),
@@ -75,6 +76,7 @@ class AnalysisPolicyTests(unittest.TestCase):
         mock_rag: object,
         _mock_rag_init: object,
         mock_llm: object,
+        _mock_llm_init: object,
         _mock_pdf: object,
     ) -> None:
         result = run_analysis(
@@ -128,6 +130,7 @@ class AnalysisPolicyTests(unittest.TestCase):
         mock_llm.assert_called_once()
 
     @patch("services.application.analysis_runner.FPDFRenderer.render", return_value=b"%PDF-test")
+    @patch("services.application.analysis_runner.GeminiLLMProvider.__init__", return_value=None)
     @patch("services.application.analysis_runner.ChromaRAGProvider.__init__", return_value=None)
     @patch(
         "services.application.analysis_runner.ChromaRAGProvider.get_context_bundle",
@@ -139,6 +142,7 @@ class AnalysisPolicyTests(unittest.TestCase):
         mock_llm: object,
         _mock_rag: object,
         _mock_rag_init: object,
+        _mock_llm_init: object,
         _mock_pdf: object,
     ) -> None:
         def _slow_report(*_args: object, **_kwargs: object) -> ReportSections:

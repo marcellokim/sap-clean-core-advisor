@@ -72,6 +72,7 @@ class AnalysisServiceTests(unittest.TestCase):
         self._tmp_dir.cleanup()
 
     @patch("services.application.analysis_runner.FPDFRenderer.render", return_value=b"%PDF-test")
+    @patch("services.application.analysis_runner.GeminiLLMProvider.__init__", return_value=None)
     @patch("services.application.analysis_runner.ChromaRAGProvider.__init__", return_value=None)
     @patch(
         "services.application.analysis_runner.ChromaRAGProvider.get_context_bundle",
@@ -90,6 +91,7 @@ class AnalysisServiceTests(unittest.TestCase):
         _mock_llm: object,
         _mock_rag: object,
         _mock_rag_init: object,
+        _mock_llm_init: object,
         _mock_pdf: object,
     ) -> None:
         result = analyze_customer_input(_sample_input())
@@ -106,6 +108,7 @@ class AnalysisServiceTests(unittest.TestCase):
         self.assertIsNotNone(result.pdf_bytes)
 
     @patch("services.application.analysis_runner.FPDFRenderer.render", return_value=b"%PDF-test")
+    @patch("services.application.analysis_runner.GeminiLLMProvider.__init__", return_value=None)
     @patch("services.application.analysis_runner.ChromaRAGProvider.__init__", return_value=None)
     @patch(
         "services.application.analysis_runner.ChromaRAGProvider.get_context_bundle",
@@ -128,6 +131,7 @@ class AnalysisServiceTests(unittest.TestCase):
         _mock_llm: object,
         _mock_rag: object,
         _mock_rag_init: object,
+        _mock_llm_init: object,
         _mock_pdf: object,
     ) -> None:
         result = analyze_customer_input(_sample_input())
@@ -138,6 +142,7 @@ class AnalysisServiceTests(unittest.TestCase):
         self.assertTrue(result.output.evidence_ledger)
         self.assertIn("llm_ms", result.output.stage_metrics_ms)
     @patch("services.application.analysis_runner.FPDFRenderer.render", return_value=b"%PDF-test")
+    @patch("services.application.analysis_runner.GeminiLLMProvider.__init__", return_value=None)
     @patch("services.application.analysis_runner.ChromaRAGProvider.__init__", return_value=None)
     @patch(
         "services.application.analysis_runner.ChromaRAGProvider.get_context_bundle",
@@ -156,6 +161,7 @@ class AnalysisServiceTests(unittest.TestCase):
         _mock_llm: object,
         _mock_rag: object,
         _mock_rag_init: object,
+        _mock_llm_init: object,
         _mock_pdf: object,
     ) -> None:
         result = analyze_customer_input(_sample_input(industry="UnknownVertical"))
