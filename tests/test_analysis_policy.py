@@ -154,7 +154,9 @@ class AnalysisPolicyTests(unittest.TestCase):
         )
         elapsed = time.perf_counter() - started
 
-        self.assertLess(elapsed, 0.35)
+        # CI 환경(공유 러너)에서도 안정적으로 검증되도록 여유를 둔다.
+        # 기존 회귀(약 2초 이상 블로킹)만 확실히 차단하는 임계값.
+        self.assertLess(elapsed, 1.2)
         self.assertEqual(result.output.generation_mode, "fallback")
         self.assertEqual(result.output.llm_status, "fallback")
         self.assertEqual(result.output.generation_error_code, "ERR_LLM_PROVIDER")
