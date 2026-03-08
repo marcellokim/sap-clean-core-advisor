@@ -1,167 +1,155 @@
-# SAP EA Support Portfolio: Clean Core Advisor
+# SAP Clean Core Advisor
 
-SAP STAR Program의 **Enterprise Architect Support** 역할을 목표로 만든 실무형 포트폴리오 프로젝트입니다.  
-핵심 목표는 다음 2가지입니다.
+[![CI](https://github.com/marcellokim/sap-clean-core-advisor/actions/workflows/ci.yml/badge.svg)](https://github.com/marcellokim/sap-clean-core-advisor/actions/workflows/ci.yml)
 
-1. 고객 미팅 전/중/후에 바로 활용 가능한 EA 산출물을 빠르게 생성  
-2. Clean Core 전환 의사결정을 정량 지표(Score/TCO/Risk)와 근거 체인으로 지원
+Portfolio project for **SAP STAR Program (Enterprise Architect Support)**.
+
+This tool helps create customer-facing EA outputs quickly, with deterministic KPI calculation and AI-assisted narrative generation.
 
 ---
 
-## 1) 왜 이 프로젝트인가 (Role Fit)
+## 1) Why this project (STAR role fit)
 
-### JD 매핑 (1:1)
-
-| 공고 역할 | 프로젝트 대응 |
+| STAR EA Support responsibility | Project evidence |
 |---|---|
-| EA cookbook 및 고객 문서 작성 지원 | 분석 결과를 PDF로 생성, EA Cookbook 템플릿/케이스 제공 (`docs/ea-cookbook/*`) |
-| 고객 미팅/워크샵 번역·운영 지원 | KO/EN 아젠다, 스크립트, 회의록·액션아이템 템플릿 제공 (`docs/workshop-kit/*`) |
-| AI adoption 지원 (예: Joule activation) | Joule Readiness 체크리스트 + Gap Analysis 제공 (`ui/joule_checklist.py`, `services/domain/joule_readiness_engine.py`) |
-| 팀 운영 ad hoc 지원 | 주간 리포트/프리체크/문서 QA 템플릿 제공 (`docs/ops-toolkit/*`) |
+| 1. EA cookbook / customer documentation | PDF output + EA cookbook templates (`docs/ea-cookbook/*`) |
+| 2. Translation / interpretation support in meetings | KO/EN workshop agenda, script, glossary (`docs/workshop-kit/*`) |
+| 3. AI adoption support (e.g., Joule activation) | Joule readiness checklist + troubleshooting playbook (`docs/joule-playbook/*`) |
+| 4. Team ad-hoc operations support | Weekly status / precheck / QA checklist (`docs/ops-toolkit/*`) |
 
 ---
 
-## 2) 핵심 기능
+## 2) What the app does
 
 ### A. Clean Core Assessment
-- Legacy 입력값 기반 결정론적 계산:
-  - Clean Core Score
-  - TCO (현재/전환 후/3년 절감)
-  - Risk Level & Risk Factors
-- 권고사항 + Evidence Ledger(근거 등급 A/B/C/D) 제공
-- Executive Summary / Detailed Report 생성
-- EA Cookbook PDF 다운로드
+- Deterministic calculation of:
+  - Clean Core score
+  - Current vs target TCO
+  - 3-year savings estimate
+  - Risk level and factors
+- Recommendation list + evidence ledger
+- Executive summary + detailed report
+- PDF export (soft-fail safe)
 
 ### B. Joule Readiness Gap Analysis
-- SAP S/4HANA Private Cloud + Joule 활성화 전 체크리스트
-- 미완료 항목 기반 리스크/권고/임원 요약 생성
+- Readiness checks for S/4HANA Private Cloud + Joule adoption
+- Gap-based actions and risk guidance
 
 ### C. EA Support Pack
-- 사이드바에서 KO/EN/ALL 문서 ZIP 즉시 다운로드
+- Downloadable practical docs (KO/EN) for real customer workshops
 
 ---
 
-## 3) 아키텍처 요약
+## 3) Architecture (summary)
 
 ```text
 Input Form
- -> Ruleset Resolution (generated opt-in > industry > base)
+ -> Ruleset Resolution (generated > industry > base)
  -> Deterministic Calculator (Score/TCO/Risk)
  -> RAG Context (optional, soft-fail)
  -> LLM Report (optional, fallback)
  -> Evidence Ledger
  -> PDF Render (soft-fail)
- -> Streamlit Dashboard
+ -> Streamlit UI
 ```
 
-### 설계 원칙
-- **Deterministic first**: 같은 입력이면 같은 KPI 수치
-- **Soft-fail**: AI 단계 실패 시에도 결과 제공 중단 금지
-- **Traceability**: 권고사항 근거를 claim 단위로 추적
+**Design principles**
+- Deterministic-first KPI engine
+- Soft-fail reliability (service still works even when AI/PDF steps fail)
+- Traceability via evidence ledger
 
 ---
 
-## 4) 실행 방법
+## 4) Quick start
 
-### 요구사항
+### Prerequisites
 - Python 3.13+
 - [uv](https://docs.astral.sh/uv/)
 
-### 설치
+### Install
 ```bash
 uv sync
 ```
 
-### 실행
+### Run
 ```bash
 make run
-# 또는
+# or
 uv run streamlit run app.py
 ```
 
 ---
 
-## 5) 품질 검증
+## 5) Quality gates
 
 ```bash
 make test
 make verify-sources
 ```
 
-- `make test`: 단위 테스트
-- `make verify-sources`: 출처 카탈로그 스키마/노후도 검증
-
-> 참고: 과거 backtest/calibrate 도구는 현재 브랜치에서 제거되었습니다.
+- `make test`: unit tests
+- `make verify-sources`: source catalog schema + staleness checks
 
 ---
 
-## 6) 2~3분 데모 시나리오 (영상 없이 발표용)
+## 6) Demo flow (2-3 minutes, no video needed)
 
-1. 고객 프로파일 입력 (업종, ERP/DB, 사용자, 커스텀 규모)
-2. KPI 확인 (Score/TCO/Risk)
-3. 권고사항 + Evidence Ledger 확인
-4. PDF 다운로드
-5. 사이드바에서 EA Support Pack ZIP 다운로드
-
----
-
-## 7) 산출물 위치
-
-### EA Cookbook
-- `docs/ea-cookbook/EA_Cookbook_Template_KO.md`
-- `docs/ea-cookbook/EA_Cookbook_Template_EN.md`
-- `docs/ea-cookbook/CaseStudy_Manufacturing_v1.pdf`
-- `docs/ea-cookbook/CaseStudy_Retail_v1.pdf`
-
-### Workshop Kit
-- `docs/workshop-kit/Workshop_Agenda_KO.md`
-- `docs/workshop-kit/Workshop_Agenda_EN.md`
-- `docs/workshop-kit/Workshop_Script_KO.md`
-- `docs/workshop-kit/Workshop_Script_EN.md`
-- `docs/workshop-kit/Minutes_Template.md`
-- `docs/workshop-kit/Decision_Log.csv`
-- `docs/workshop-kit/Action_Items.csv`
-
-### Joule Playbook
-- `docs/joule-playbook/Joule_Activation_Checklist_KO.md`
-- `docs/joule-playbook/Joule_Activation_Checklist_EN.md`
-- `docs/joule-playbook/Joule_Troubleshooting_KO.md`
-- `docs/joule-playbook/Joule_Troubleshooting_EN.md`
-
-### Ops Toolkit
-- `docs/ops-toolkit/Weekly_Status_Template.md`
-- `docs/ops-toolkit/Customer_Meeting_Precheck.md`
-- `docs/ops-toolkit/Document_QA_Checklist.md`
+1. Enter customer profile (industry / ERP / DB / users / custom code)
+2. Show KPI outputs (Score / TCO / Risk)
+3. Show recommendations + evidence ledger
+4. Export PDF report
+5. Download EA support pack docs from sidebar
 
 ---
 
-## 8) 기술 스택
+## 7) Repository guide
 
-- UI: Streamlit, Plotly
-- Validation/Schema: Pydantic
-- LLM: Gemini, GLM (provider abstraction)
-- RAG: ChromaDB + HuggingFace Embeddings
-- PDF: fpdf2
-- Build/Test: uv, unittest, Make
-- CI: GitHub Actions (`.github/workflows/ci.yml`)
+### App
+- `app.py` - Streamlit entry
+- `services/application/analysis_runner.py` - policy-driven orchestration
+- `services/cost_calculator.py` - deterministic KPI logic
+- `services/domain/*` - recommendations, evidence, validation
+
+### Documents (portfolio evidence)
+- `docs/ea-cookbook/*`
+- `docs/workshop-kit/*`
+- `docs/joule-playbook/*`
+- `docs/ops-toolkit/*`
+
+### Engineering appendix
+- `docs/engineering/ARCHITECTURE_APPENDIX.md`
 
 ---
 
-## 9) 문서
+## 8) Interview talking points (recommended)
 
-- 엔지니어링 부록: `docs/engineering/ARCHITECTURE_APPENDIX.md`
-- 학습 커리큘럼: `docs/Study_Curriculum_KO.md`
+- Why deterministic-first is critical for enterprise trust
+- How fallback design protects customer experience
+- How evidence ledger improves explainability for EA decisions
+- How the project supports both technical and customer-facing EA tasks
 
 ---
 
-## 10) 참고 링크
+## 9) Korean summary (간단 요약)
+
+이 프로젝트는 SAP STAR Program의 Enterprise Architect Support 역할에 맞춰,
+- 고객 문서화(쿠크북/PDF),
+- 워크샵 운영 보조(한/영 아젠다·스크립트·용어집),
+- Joule 도입 지원 체크리스트,
+- 팀 운영 템플릿
+을 실제 산출물 중심으로 제공합니다.
+
+핵심은 **정량 지표의 결정론적 계산 + AI 소프트페일 설계 + 근거 추적(Evidence Ledger)** 입니다.
+
+---
+
+## 10) References
 
 ### Official
-- [SAP Strategy / Maintenance](https://support.sap.com/en/offerings-programs/strategy.html)
-- [RISE with SAP Clean Core](https://www.sap.com/products/erp/rise/methodology/clean-core.html)
-- [SAP Readiness Check](https://help.sap.com/doc/bb0e7ba5158c424ab7ce010228bf1de1)
+- https://support.sap.com/en/offerings-programs/strategy.html
+- https://www.sap.com/products/erp/rise/methodology/clean-core.html
+- https://help.sap.com/doc/bb0e7ba5158c424ab7ce010228bf1de1
 
 ### SAP Community
-- [Joule Setup & Activation Guide](https://community.sap.com/t5/enterprise-resource-planning-blog-posts-by-sap/setup-and-activation-guide-joule-in-sap-s-4hana-private-cloud/ba-p/14325221)
-- [Clean Core Extensibility](https://community.sap.com/t5/enterprise-resource-planning-blog-posts-by-sap/clean-core-extensibility-balancing-standardization-and-differentiation/ba-p/14260149)
-
+- https://community.sap.com/t5/enterprise-resource-planning-blog-posts-by-sap/setup-and-activation-guide-joule-in-sap-s-4hana-private-cloud/ba-p/14325221
+- https://community.sap.com/t5/enterprise-resource-planning-blog-posts-by-sap/clean-core-extensibility-balancing-standardization-and-differentiation/ba-p/14260149
