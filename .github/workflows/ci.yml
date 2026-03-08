@@ -26,8 +26,7 @@ jobs:
         run: uv sync --frozen
 
       - name: Run unit tests
-        run: make test
+        run: uv run python -m unittest discover -s tests -v
 
       - name: Verify source catalog
-        run: make verify-sources
-
+        run: uv run python tools/verify_sources.py --skip-http --json

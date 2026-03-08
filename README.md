@@ -1,28 +1,111 @@
 # SAP EA Support Portfolio: Clean Core Advisor
 
-## 0. Role Fit (Enterprise Architect Support)
-이 프로젝트는 “기술 데모 앱”이 아니라, SAP STAR Program의 **Enterprise Architect Support** 업무를 빠르게 수행하기 위한 실무형 포트폴리오입니다.
+SAP STAR Program의 **Enterprise Architect Support** 역할을 목표로 만든 실무형 포트폴리오 프로젝트입니다.  
+핵심 목표는 다음 2가지입니다.
+
+1. 고객 미팅 전/중/후에 바로 활용 가능한 EA 산출물을 빠르게 생성  
+2. Clean Core 전환 의사결정을 정량 지표(Score/TCO/Risk)와 근거 체인으로 지원
+
+---
+
+## 1) 왜 이 프로젝트인가 (Role Fit)
 
 ### JD 매핑 (1:1)
-1. EA cookbook/고객 문서 작성 지원  
-- 분석 결과를 임원 보고용 PDF(EA Cookbook)로 생성
 
-2. 고객 미팅/워크샵 운영 및 번역 지원  
-- EN/KO 이중 문서 템플릿과 워크샵 운영 키트 제공
+| 공고 역할 | 프로젝트 대응 |
+|---|---|
+| EA cookbook 및 고객 문서 작성 지원 | 분석 결과를 PDF로 생성, EA Cookbook 템플릿/케이스 제공 (`docs/ea-cookbook/*`) |
+| 고객 미팅/워크샵 번역·운영 지원 | KO/EN 아젠다, 스크립트, 회의록·액션아이템 템플릿 제공 (`docs/workshop-kit/*`) |
+| AI adoption 지원 (예: Joule activation) | Joule Readiness 체크리스트 + Gap Analysis 제공 (`ui/joule_checklist.py`, `services/domain/joule_readiness_engine.py`) |
+| 팀 운영 ad hoc 지원 | 주간 리포트/프리체크/문서 QA 템플릿 제공 (`docs/ops-toolkit/*`) |
 
-3. AI adoption 지원 (Joule activation support)  
-- Joule activation checklist/troubleshooting 문서 제공
+---
 
-4. 팀 운영 ad hoc 지원  
-- 주간 리포트/미팅 프리체크/문서 QA 템플릿 제공
+## 2) 핵심 기능
 
-## 1. Core Feature: Joule Readiness AI Gap Analysis (📌 NEW)
-포트폴리오 고도화를 통해 **"Joule Activation 사전 점검 체크리스트"** 기능이 추가되었습니다.
-EA 인턴으로서 기술 도입 과정의 병목을 파악하고 경영진을 설득하는 역량을 보여주기 위해 기획되었습니다.
+### A. Clean Core Assessment
+- Legacy 입력값 기반 결정론적 계산:
+  - Clean Core Score
+  - TCO (현재/전환 후/3년 절감)
+  - Risk Level & Risk Factors
+- 권고사항 + Evidence Ledger(근거 등급 A/B/C/D) 제공
+- Executive Summary / Detailed Report 생성
+- EA Cookbook PDF 다운로드
 
-*   **인터랙티브 UI**: SAP S/4HANA Private Cloud 환경 기반 필수 선결 과제(인프라, 보안, 테스트 등) 점검
-*   **Gemini 2.5 Flash 기반 갭 분석**: 고객이 체크하지 않은 항목의 위험도를 즉시 분석하고, "경영진 요약(Executive Summary)" 및 "Actionable Recommendations"를 포함한 한국어 컨설팅 리포트 자동 생성
-*   **프리미엄 대시보드 UI**: SaaS 수준의 모던 CSS가 적용된 결과 화면 제공
+### B. Joule Readiness Gap Analysis
+- SAP S/4HANA Private Cloud + Joule 활성화 전 체크리스트
+- 미완료 항목 기반 리스크/권고/임원 요약 생성
+
+### C. EA Support Pack
+- 사이드바에서 KO/EN/ALL 문서 ZIP 즉시 다운로드
+
+---
+
+## 3) 아키텍처 요약
+
+```text
+Input Form
+ -> Ruleset Resolution (generated opt-in > industry > base)
+ -> Deterministic Calculator (Score/TCO/Risk)
+ -> RAG Context (optional, soft-fail)
+ -> LLM Report (optional, fallback)
+ -> Evidence Ledger
+ -> PDF Render (soft-fail)
+ -> Streamlit Dashboard
+```
+
+### 설계 원칙
+- **Deterministic first**: 같은 입력이면 같은 KPI 수치
+- **Soft-fail**: AI 단계 실패 시에도 결과 제공 중단 금지
+- **Traceability**: 권고사항 근거를 claim 단위로 추적
+
+---
+
+## 4) 실행 방법
+
+### 요구사항
+- Python 3.13+
+- [uv](https://docs.astral.sh/uv/)
+
+### 설치
+```bash
+uv sync
+```
+
+### 실행
+```bash
+make run
+# 또는
+uv run streamlit run app.py
+```
+
+---
+
+## 5) 품질 검증
+
+```bash
+make test
+make verify-sources
+```
+
+- `make test`: 단위 테스트
+- `make verify-sources`: 출처 카탈로그 스키마/노후도 검증
+
+> 참고: 과거 backtest/calibrate 도구는 현재 브랜치에서 제거되었습니다.
+
+---
+
+## 6) 2~3분 데모 시나리오 (영상 없이 발표용)
+
+1. 고객 프로파일 입력 (업종, ERP/DB, 사용자, 커스텀 규모)
+2. KPI 확인 (Score/TCO/Risk)
+3. 권고사항 + Evidence Ledger 확인
+4. PDF 다운로드
+5. 사이드바에서 EA Support Pack ZIP 다운로드
+
+---
+
+## 7) 산출물 위치
 
 ### EA Cookbook
 - `docs/ea-cookbook/EA_Cookbook_Template_KO.md`
@@ -52,86 +135,26 @@ EA 인턴으로서 기술 도입 과정의 병목을 파악하고 경영진을 �
 
 ---
 
-## 2. Demo Flow (2-3분 설명용)
+## 8) 기술 스택
 
-### 실행
-```bash
-cd /Users/ydmac/Documents/sap-clean-core-advisor
-uv run streamlit run app.py
-```
-
-### 설명 순서
-1. Legacy 시스템 정보 입력 (고객 프로파일)
-2. Clean Core 점수/리스크/TCO 결과 확인
-3. 핵심 권고사항 + Evidence Ledger 확인
-4. EA Cookbook PDF 다운로드
-5. 사이드바에서 EA Support Pack ZIP 다운로드
-
-### 기본 동작 원칙
-- UI에서는 실행 모드를 노출하지 않음
-- 앱은 포트폴리오 데모를 위해 **Hybrid 정책으로 고정 실행**
-- AI 단계 실패 시에도 자동으로 안정 모드 결과를 제공
+- UI: Streamlit, Plotly
+- Validation/Schema: Pydantic
+- LLM: Gemini, GLM (provider abstraction)
+- RAG: ChromaDB + HuggingFace Embeddings
+- PDF: fpdf2
+- Build/Test: uv, unittest, Make
+- CI: GitHub Actions (`.github/workflows/ci.yml`)
 
 ---
 
-## 3. Business Value
+## 9) 문서
 
-### Target Persona
-- 국내 중견 제조기업 CIO / IT 리더
-- ECC 6.0 + Oracle + 높은 커스텀 코드 비중 환경
-- Cloud/S/4HANA 전환 압박, 그러나 초기 진단 자료 부족
-
-### 해결하는 문제
-- 초기 EA 진단 문서 준비 시간이 오래 걸림
-- 전환 우선순위가 정량화되지 않음
-- 임원 보고용 산출물의 일관성/추적성 부족
-
-### 제공 가치
-- 1분 내 초기 진단
-- KPI(Score/TCO/Risk) 기반 의사결정 지원
-- 근거 체인 기반 권고사항 제시
-- 고객 미팅 직전 사용 가능한 문서 패키지 즉시 확보
+- 엔지니어링 부록: `docs/engineering/ARCHITECTURE_APPENDIX.md`
+- 학습 커리큘럼: `docs/Study_Curriculum_KO.md`
 
 ---
 
-## 4. Product Scope
-
-### 화면에 보여주는 것
-- KPI 4종(Score, 현재 TCO, 전환 후 TCO, 3년 절감)
-- 리스크 요인, 핵심 권고사항
-- Executive Summary / 상세 리포트
-- Evidence Ledger
-- PDF 다운로드
-
-### 화면에서 숨긴 것
-- 내부 상태/디버그 메타데이터(실행 ID, stage metrics, 토큰/비용, ruleset 캡션 등)
-- 엔진 운영 신호(RAG/LLM/PDF 상태 카드)
-- 내부 오류코드 직접 노출
-
----
-
-## 5. Run & Test
-
-### Local run
-```bash
-make run
-```
-
-### Test
-```bash
-make test
-```
-
----
-
-## 6. 기술 상세 문서
-엔지니어링 아키텍처, 실행 정책, 회로 차단기, ruleset/calibration, 운영 환경변수는 아래 기술 부록에 분리했습니다.
-
-- `docs/engineering/ARCHITECTURE_APPENDIX.md`
-
----
-
-## 7. References
+## 10) 참고 링크
 
 ### Official
 - [SAP Strategy / Maintenance](https://support.sap.com/en/offerings-programs/strategy.html)
@@ -141,3 +164,4 @@ make test
 ### SAP Community
 - [Joule Setup & Activation Guide](https://community.sap.com/t5/enterprise-resource-planning-blog-posts-by-sap/setup-and-activation-guide-joule-in-sap-s-4hana-private-cloud/ba-p/14325221)
 - [Clean Core Extensibility](https://community.sap.com/t5/enterprise-resource-planning-blog-posts-by-sap/clean-core-extensibility-balancing-standardization-and-differentiation/ba-p/14260149)
+
