@@ -55,6 +55,8 @@ class AnalysisPolicyTests(unittest.TestCase):
         self.assertEqual(result.output.llm_status, "skipped")
         self.assertEqual(result.output.generation_mode, "fallback")
         self.assertEqual(result.output.pdf_status, "ok")
+        self.assertEqual(result.output.llm_usage_source, "none")
+        self.assertEqual(result.output.llm_cost_estimate_usd, 0.0)
         mock_rag.assert_not_called()
         mock_llm.assert_not_called()
 
@@ -84,6 +86,11 @@ class AnalysisPolicyTests(unittest.TestCase):
         self.assertEqual(result.output.llm_status, "ok")
         self.assertEqual(result.output.generation_mode, "llm")
         self.assertEqual(result.output.pdf_status, "ok")
+        self.assertEqual(result.output.llm_usage_source, "none")
+        self.assertIn("prompt_tokens", result.output.llm_usage_tokens)
+        self.assertIn("output_tokens", result.output.llm_usage_tokens)
+        self.assertIn("total_tokens", result.output.llm_usage_tokens)
+        self.assertIn("estimated_usd", result.output.llm_monthly_projection_usd)
         mock_rag.assert_called_once()
         mock_llm.assert_called_once()
 

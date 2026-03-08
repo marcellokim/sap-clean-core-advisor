@@ -161,6 +161,28 @@ def _classify_pdf_error(exc: Exception) -> str:
     return ERR_PDF_UNKNOWN
 
 
+def _usage_tokens_map(usage: LLMUsage) -> dict[str, int]:
+    return {
+        "prompt_tokens": max(0, int(usage.prompt_tokens)),
+        "output_tokens": max(0, int(usage.output_tokens)),
+        "total_tokens": max(0, int(usage.total_tokens)),
+    }
+
+
+def _estimate_llm_cost_usd(usage: LLMUsage) -> float:
+    prompt_cost = (max(0, usage.prompt_tokens) / 1_000_000) * settings.LLM_PRICE_INPUT_PER_1M
+    output_cost = (max(0, usage.output_tokens) / 1_000_000) * settings.LLM_PRICE_OUTPUT_PER_1M
+    return round(prompt_cost + output_cost, 8)
+
+
+def _monthly_llm_projection_usd(cost_per_request_usd: float) -> dict[str, float]:
+    monthly_requests = max(0.0, float(settings.LLM_MONTHLY_REQUESTS))
+    return {
+        "monthly_requests": round(monthly_requests, 2),
+        "estimated_usd": round(cost_per_request_usd * monthly_requests, 4),
+    }
+
+
 def _build_report_payload(
     inp: CustomerInput,
     calc: CalculationResult,
@@ -331,6 +353,7 @@ def run_analysis(
                     sections = future.result(timeout=remaining_timeout)
             finally:
                 executor.shutdown(wait=False, cancel_futures=True)
+            llm_usage = sections.usage
             generation_mode = "llm"
             generation_error_code = None
             llm_status = "ok"
@@ -364,6 +387,10 @@ def run_analysis(
     if _timeout_hit(total_start, effective_policy.timeout_ms):
         validation_warnings.append("ANALYSIS_TIMEOUT: 타임아웃 임계치 도달로 일부 단계를 건너뛰었습니다.")
 
+    llm_usage_tokens = _usage_tokens_map(llm_usage)
+    llm_cost_estimate_usd = _estimate_llm_cost_usd(llm_usage)
+    llm_monthly_projection_usd = _monthly_llm_projection_usd(llm_cost_estimate_usd)
+
     output = AdvisorOutput(
         clean_core_score=calc.clean_core_score,
         score_breakdown=calc.score_breakdown,
@@ -389,9 +416,9 @@ def run_analysis(
         ruleset_profile_source=calc.ruleset_profile_source,
         calibration_quality=calc.calibration_quality,
         llm_usage_source=llm_usage.source,
-        llm_usage_tokens={},
-        llm_cost_estimate_usd=0.0,
-        llm_monthly_projection_usd={},
+        llm_usage_tokens=llm_usage_tokens,
+        llm_cost_estimate_usd=llm_cost_estimate_usd,
+        llm_monthly_projection_usd=llm_monthly_projection_usd,
         validation_warnings=validation_warnings,
         stage_metrics_ms=stage_metrics_ms,
         evidence_ledger=evidence_ledger,
@@ -441,7 +468,9 @@ def run_analysis(
         "ruleset_profile_id": calc.ruleset_profile_id,
         "ruleset_profile_source": calc.ruleset_profile_source,
         "calibration_quality": calc.calibration_quality,
-        "llm_cost_estimate_usd": 0.0,
+        "llm_cost_estimate_usd": llm_cost_estimate_usd,
+        "llm_usage_source": llm_usage.source,
+        "llm_usage_tokens": llm_usage_tokens,
         "stage_metrics_ms": stage_metrics_ms,
         "evidence_count": len(evidence_ledger),
     }

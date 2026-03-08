@@ -143,6 +143,22 @@ class AdvisorOutput(BaseModel):
         default_factory=dict,
         description="룰셋 보정 품질 메트릭 (예: mape_tco, risk_agreement)",
     )
+    llm_usage_source: Literal["provider", "estimated", "none"] = Field(
+        default="none",
+        description="LLM 토큰 사용량 산출 출처(provider/estimated/none)",
+    )
+    llm_usage_tokens: dict[str, int] = Field(
+        default_factory=dict,
+        description="LLM 토큰 사용량(prompt/output/total)",
+    )
+    llm_cost_estimate_usd: float = Field(
+        default=0.0,
+        description="요청 1회 기준 LLM 비용 추정(USD)",
+    )
+    llm_monthly_projection_usd: dict[str, float] = Field(
+        default_factory=dict,
+        description="월간 요청량 기준 LLM 비용 추정(USD)",
+    )
     validation_warnings: list[str] = Field(
         default_factory=list,
         description="입력/해석 품질 관련 비치명 경고",
