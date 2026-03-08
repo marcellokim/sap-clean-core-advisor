@@ -35,20 +35,22 @@ def analyze_customer_input_cached(customer_input_dict: dict, lang: str = "ko", p
         
     return run_analysis(inp, policy=pol, lang=lang)
 
-def analyze_customer_input(customer_input, lang: str = "ko"):
+def analyze_customer_input(customer_input, lang: str = "ko", policy: AnalysisPolicy | None = None):
     """Backward-compatible entrypoint for existing callers."""
     import dataclasses
     import os
     from services.application.analysis_runner import AnalysisPolicy
-    
+
+    effective_policy = policy or AnalysisPolicy.from_env()
+
     # Bypass cache if testing
     if os.environ.get("DISABLE_CACHE") == "1":
-        return run_analysis(customer_input, policy=AnalysisPolicy.from_env(), lang=lang)
-        
+        return run_analysis(customer_input, policy=effective_policy, lang=lang)
+
     return analyze_customer_input_cached(
-        customer_input.model_dump(), 
+        customer_input.model_dump(),
         lang=lang,
-        policy_dict=dataclasses.asdict(AnalysisPolicy.from_env())
+        policy_dict=dataclasses.asdict(effective_policy)
     )
 
 

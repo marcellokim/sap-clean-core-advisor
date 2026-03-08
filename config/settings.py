@@ -12,7 +12,6 @@ class Settings(BaseSettings):
     # Analysis Policy
     ANALYSIS_MODE: Literal["deterministic", "hybrid", "llm_only"] = "deterministic"
     ANALYSIS_TIMEOUT_MS: int = 0
-    ANALYSIS_USE_CIRCUIT_BREAKER: bool = True
     ANALYSIS_ARTIFACTS_ENABLE: bool = False
 
     # LLM Settings
@@ -33,12 +32,6 @@ class Settings(BaseSettings):
     GLM_API_KEY: str = ""
     GLM_MODEL: str = "glm-5"
     GLM_API_BASE_URL: str = "https://open.bigmodel.cn/api/paas/v4"
-
-    # Circuit Breaker Defaults
-    LLM_CB_FAILURE_THRESHOLD: int = 3
-    LLM_CB_OPEN_SEC: int = 120
-    RAG_CB_FAILURE_THRESHOLD: int = 3
-    RAG_CB_OPEN_SEC: int = 120
 
     # LLM Cost Simulation
     LLM_PRICE_INPUT_PER_1M: float = 0.075

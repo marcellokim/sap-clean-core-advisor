@@ -10,7 +10,6 @@ from pathlib import Path
 import streamlit as st
 
 from models.schemas import CustomerInput
-from services.analysis_service import run_analysis
 from services.infrastructure.rag.chroma_provider import get_cached_vector_store
 from ui.dashboard import render_dashboard
 from ui.input_form import render_input_form
@@ -312,7 +311,7 @@ def _render_clean_core_tab() -> None:
             st.write(_("비용 계산 및 AI 로드맵 생성 (RAG/LLM)...", "Running TCO calculation and AI generation (RAG/LLM)..."))
             # Use the newly added cached wrapper avoiding serialization issues
             from services.analysis_service import analyze_customer_input
-            analysis_result = analyze_customer_input(customer_input, lang=lang)
+            analysis_result = analyze_customer_input(customer_input, lang=lang, policy=policy)
             output = analysis_result.output
             pdf_bytes = analysis_result.pdf_bytes
         except Exception as e:

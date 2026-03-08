@@ -33,24 +33,23 @@
 
 ---
 
-## Phase 3: 도메인 지식 최적화 (데이터 검증 및 캘리브레이션) (3주차)
-**목표**: 추정 모델의 정확도를 높이고, 새로운 산업군 데이터가 들어왔을 때 자동으로 Ruleset을 보정하는 백테스트 과정을 이해합니다.
+## Phase 3: 도메인 지식 거버넌스 (룰셋/출처 검증) (3주차)
+**목표**: 산업군 룰셋 계층과 출처 검증 체계를 이해하고, 분석 품질을 안정적으로 유지하는 운영 루틴을 익힙니다.
 
 * **코드 분석**:
-  * `services/data_quality.py`: 입력되는 CSV 데이터에 대한 필수 품질 체크(최소 샘플 수 등) 검증 로직
-  * `services/calibration_engine.py`: 실제 데이터(Actual)와 추정 데이터(Estimate)간의 차이를 어떻게 줄여서 새로운 `generated` ruleset을 발급하는지 분석
+  * `services/ruleset_loader.py`, `config/rulesets/*`: generated > industry > base 우선순위와 fallback 흐름
+  * `services/industry_mapper.py`, `config/industry_aliases.yaml`: 업종 정규화와 canonical profile 매핑
+  * `tools/verify_sources.py`, `docs/sources.yaml`: 출처 카탈로그 스키마/노후도 검증 로직
 * **실습**:
-  * `calibration/data/demo_synthetic.csv` 데이터 구조(Data Contract) 정독
-  * `make backtest INDUSTRY=manufacturing`, `make calibrate INDUSTRY=manufacturing` 실행
-  * `calibration/reports/`에 생성된 결과물 및 `config/rulesets/generated/manufacturing.yaml` 변화 확인
+  * `make verify-sources` 실행 후 결과 JSON 해석
+  * `config/rulesets/generated/`를 ON/OFF(`RULESET_ALLOW_GENERATED`)하며 적용 규칙 우선순위 확인
 
 ---
 
 ## Phase 4: AI 파이프라인과 장애 복구(Fallback) 설계 (4주차)
-**목표**: RAG와 LLM을 연동하는 구조 및 API 장애, 권한 오류, Rate Limit 등에서 시스템을 터뜨리지 않는(Soft-fail & Circuit Breaker) 방어적 코딩을 익힙니다.
+**목표**: RAG와 LLM을 연동하는 구조 및 API 장애, 권한 오류, Rate Limit 등에서 시스템을 터뜨리지 않는 Soft-fail/Fallback 설계를 익힙니다.
 
 * **코드 분석**:
-  * `services/infrastructure/policy/circuit_breaker.py`: LLM이나 RAG가 일정 횟수 이상 실패했을 때 대기열 진입을 차단하는 핵심 래퍼 로직
   * `services/rag_pipeline.py` & `services/infrastructure/rag/chroma_provider.py`
   * `services/llm_provider.py`(또는 BaseLLMProvider) 및 파생된 `gemini_provider.py`, `glm_provider.py`
 * **주요 흐름(Orchestration)**:
@@ -73,12 +72,12 @@
 **목표**: 시스템 전체 계층에 대한 이해를 바탕으로 직접 기능을 추가하고 검증합니다.
 
 * **코드 유지보수 및 테스트**:
-  * `tests/` 디렉토리에 있는 38개 이상의 단위 테스트 탐구 (특히 모의 객체(Mock)를 통한 API 오류 발생 테스트)
+  * `tests/` 디렉토리 단위 테스트 탐구 (특히 모의 객체(Mock)를 통한 API 오류 발생 테스트)
   * `make test` 로 모든 TC 통과 확인
 * **🚀 최종 마스터를 위한 실무 과제**:
-  1. **신규 산업 룰 적용**: `healthcare.yaml` 등 임의의 산업군 룰 베이스를 `config/rulesets/industries`에 만들고 캘리브레이션 테스트 통과시키기
+  1. **신규 산업 룰 적용**: `healthcare.yaml` 등 임의의 산업군 룰 베이스를 `config/rulesets/industries`에 만들고 테스트 통과시키기
   2. **LLM 확장**: `OpenAIProvider` 또는 `ClaudeProvider` 모듈을 `services/infrastructure/llm/` 하위에 새로 추가하여 `app.py` 연동
-  3. **서킷 브레이커 시뮬레이션**: 강제로 잘못된 API Key를 입력하거나 `LLM_DISABLE=true`로 변경해 `hybrid` 모드에서 시스템이 어떻게 Fallback 리포트를 다운로드 가능한 형태로 유지하는지 디버깅해보기
+  3. **Fallback 시뮬레이션**: 강제로 잘못된 API Key를 입력하거나 `LLM_DISABLE=true`로 변경해 `hybrid` 모드에서 시스템이 어떻게 Fallback 리포트를 유지하는지 디버깅해보기
 
 ---
 **💡 학습 팁**:

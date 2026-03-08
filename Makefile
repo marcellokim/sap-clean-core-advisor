@@ -13,8 +13,9 @@ verify-sources:
 	$(PYTHON) tools/verify_sources.py --skip-http --json
 
 backtest:
-	$(PYTHON) tools/backtest_ruleset.py --industry $(INDUSTRY)
+	@echo "[deprecated] backtest workflow has been removed in this branch."
+	@echo "Use: make test && make verify-sources"
 
 calibrate:
-	$(PYTHON) tools/calibrate_ruleset.py --industry $(INDUSTRY)
-
+	@echo "[deprecated] calibrate workflow has been removed in this branch."
+	@echo "Use: make test && make verify-sources"

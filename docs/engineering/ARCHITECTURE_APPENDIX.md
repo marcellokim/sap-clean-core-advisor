@@ -28,18 +28,12 @@ Input Form
 - `rag_enabled`
 - `llm_enabled`
 - `timeout_ms`
-- `use_circuit_breaker`
 
 포트폴리오 UI 기본:
 - `app.py`에서 `analysis_mode="hybrid"`로 고정 호출
 - 모드 선택 UI는 비노출
 
-## 3. Circuit Breaker & Error Taxonomy
-
-### Circuit Breaker
-- LLM/RAG 각각 독립 breaker
-- 실패 누적 임계치 도달 시 Open 상태
-- Open 기간 동안 즉시 스킵
+## 3. Error Taxonomy
 
 ### 주요 에러코드
 - `ERR_LLM_DISABLED`
@@ -52,7 +46,7 @@ Input Form
 - `ERR_PDF_FONT`
 - `ERR_PDF_UNKNOWN`
 
-## 4. Ruleset / Calibration
+## 4. Ruleset Governance
 
 ### Ruleset
 - `config/rulesets/base.yaml`
@@ -64,11 +58,8 @@ Input Form
 2. industry
 3. base
 
-### Calibration/Backtest
-- `tools/backtest_ruleset.py`
-- `tools/calibrate_ruleset.py`
-- industry canonical profile 기준 필터링 후 평가
-- report 출력: `calibration/reports/*.md`, `calibration/reports/*.json`
+보정(calibration)/백테스트 도구는 현재 브랜치에서 제거되었고,
+운영 검증은 `make test`, `make verify-sources`를 기준으로 수행합니다.
 
 ## 5. Evidence Ledger
 
@@ -93,7 +84,6 @@ Input Form
 # Runtime
 ANALYSIS_MODE=deterministic
 ANALYSIS_TIMEOUT_MS=0
-ANALYSIS_USE_CIRCUIT_BREAKER=true
 ANALYSIS_ARTIFACTS_ENABLE=false
 
 # LLM
@@ -104,8 +94,6 @@ LLM_MAX_RETRIES=2
 LLM_BASE_DELAY_SEC=5
 LLM_HTTP_TIMEOUT_SEC=45
 LLM_DISABLE=false
-LLM_CB_FAILURE_THRESHOLD=3
-LLM_CB_OPEN_SEC=120
 
 # Provider keys
 GOOGLE_API_KEY=
@@ -125,8 +113,6 @@ RAG_ENABLE=true
 RAG_OFFLINE_ALLOW=true
 RAG_WARMUP_ON_START=false
 RAG_MAX_CONTEXT_CHARS=6000
-RAG_CB_FAILURE_THRESHOLD=3
-RAG_CB_OPEN_SEC=120
 
 # Ruleset / calibration
 RULESET_DIR=config/rulesets
@@ -145,7 +131,4 @@ SOURCE_VERIFY_MAX_AGE_DAYS=90
 ```bash
 make test
 make verify-sources
-make backtest INDUSTRY=manufacturing
-make calibrate INDUSTRY=manufacturing
 ```
-
