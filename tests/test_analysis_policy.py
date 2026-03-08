@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import time
 import unittest
 from unittest.mock import patch
 
@@ -118,6 +119,41 @@ class AnalysisPolicyTests(unittest.TestCase):
         self.assertEqual(result.output.generation_mode, "llm")
         mock_rag.assert_called_once()
         mock_llm.assert_called_once()
+
+    @patch("services.application.analysis_runner.FPDFRenderer.render", return_value=b"%PDF-test")
+    @patch("services.application.analysis_runner.ChromaRAGProvider.__init__", return_value=None)
+    @patch(
+        "services.application.analysis_runner.ChromaRAGProvider.get_context_bundle",
+        return_value=RAGContextBundle(context="[출처: x]\nctx", sources=["x"], chunk_count=1),
+    )
+    @patch("services.application.analysis_runner.GeminiLLMProvider.generate_report")
+    def test_hybrid_mode_respects_timeout_budget_for_llm(
+        self,
+        mock_llm: object,
+        _mock_rag: object,
+        _mock_rag_init: object,
+        _mock_pdf: object,
+    ) -> None:
+        def _slow_report(*_args: object, **_kwargs: object) -> ReportSections:
+            time.sleep(0.4)
+            return ReportSections(executive_summary="LLM EXEC", detailed_report="LLM DETAIL")
+
+        mock_llm.side_effect = _slow_report
+
+        started = time.perf_counter()
+        result = run_analysis(
+            _sample_input(),
+            policy=AnalysisPolicy(analysis_mode="hybrid", rag_enabled=True, llm_enabled=True, timeout_ms=100),
+        )
+        elapsed = time.perf_counter() - started
+
+        self.assertLess(elapsed, 0.35)
+        self.assertEqual(result.output.generation_mode, "fallback")
+        self.assertEqual(result.output.llm_status, "fallback")
+        self.assertEqual(result.output.generation_error_code, "ERR_LLM_PROVIDER")
+        self.assertTrue(
+            any("ANALYSIS_TIMEOUT" in warning for warning in result.output.validation_warnings)
+        )
 
 
 if __name__ == "__main__":

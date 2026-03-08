@@ -6,6 +6,7 @@ import json
 import logging
 import os
 import time
+import concurrent.futures
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
@@ -102,6 +103,16 @@ def _timeout_hit(start_ts: float, timeout_ms: int) -> bool:
     if timeout_ms <= 0:
         return False
     return _elapsed_ms(start_ts) >= timeout_ms
+
+
+def _remaining_timeout_sec(start_ts: float, timeout_ms: int) -> float | None:
+    """Return remaining timeout budget in seconds, or None when timeout is disabled."""
+    if timeout_ms <= 0:
+        return None
+    remaining_ms = timeout_ms - _elapsed_ms(start_ts)
+    if remaining_ms <= 0:
+        return 0.0
+    return remaining_ms / 1000.0
 
 
 def _is_true(value: str | None) -> bool:
@@ -310,16 +321,24 @@ def run_analysis(
         try:
             provider = _create_llm_provider(provider_name)
             generation_provider = provider.provider_name
-            import concurrent.futures
-            with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
-                future = executor.submit(provider.generate_report, payload)
-                if effective_policy.timeout_ms > 0:
-                    sections = future.result(timeout=effective_policy.timeout_ms / 1000.0)
-                else:
+            executor = concurrent.futures.ThreadPoolExecutor(max_workers=1)
+            future = executor.submit(provider.generate_report, payload)
+            try:
+                remaining_timeout = _remaining_timeout_sec(total_start, effective_policy.timeout_ms)
+                if remaining_timeout is None:
                     sections = future.result()
+                else:
+                    sections = future.result(timeout=remaining_timeout)
+            finally:
+                executor.shutdown(wait=False, cancel_futures=True)
             generation_mode = "llm"
             generation_error_code = None
             llm_status = "ok"
+        except concurrent.futures.TimeoutError:
+            generation_mode = "fallback"
+            generation_error_code = ERR_LLM_PROVIDER
+            llm_status = "fallback"
+            logger.warning("LLM generation timed out. Using fallback report.")
         except LLMProviderError as exc:
             generation_mode = "fallback"
             if exc.code == ERR_PROVIDER_NOT_SUPPORTED:
