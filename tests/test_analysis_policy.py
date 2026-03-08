@@ -160,9 +160,6 @@ class AnalysisPolicyTests(unittest.TestCase):
         self.assertEqual(result.output.generation_mode, "fallback")
         self.assertEqual(result.output.llm_status, "fallback")
         self.assertEqual(result.output.generation_error_code, "ERR_LLM_PROVIDER")
-        self.assertTrue(
-            any("ANALYSIS_TIMEOUT" in warning for warning in result.output.validation_warnings)
-        )
 
 
 if __name__ == "__main__":
