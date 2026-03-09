@@ -10,6 +10,9 @@ REC_BUDGET_RATIO_OVER_70: "Current operation TCO is over 70% of annual IT budget
 REC_HIGH_CUSTOM_MODULE_BTP: "Consider rebuilding core extensions in {high_custom_modules} via SAP BTP Side-by-Side Extension."
 REC_TIMELINE_TIGHT_PHASED: "Timeline is tight relative to module count. A Phased Approach (FI/CO first, then others) is recommended."
 REC_DEFAULT_BASELINE: "Conduct Fit-to-Standard checks for core modules first and plan to retain only essential custom code."
+REC_LOW_RISK_GOVERNANCE: "To sustain maturity, run quarterly Fit-to-Standard governance reviews to control net-new customizations."
+REC_LOW_RISK_KPI_MONITORING: "Monitor Clean Core KPIs monthly (new Z-code count, custom ratio, deployment failure rate) and trigger corrective action on threshold breach."
+REC_LOW_RISK_ROADMAP: "Document a 12-month improvement roadmap (process standardization, BTP extension principles, technical debt cap) as an execution baseline."
 
 FACT_CLEAN_CORE_SCORE: "Clean Core Score {score:.1f}/100"
 FACT_TCO_SAVINGS: "3-year cumulative savings {savings:.2f}B KRW (Current {current:.2f}B → Projected {projected:.2f}B)"

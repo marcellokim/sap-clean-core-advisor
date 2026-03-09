@@ -10,6 +10,7 @@ from typing import Protocol
 class ReportPayload:
     """LLM 리포트 생성 입력 페이로드."""
 
+    analysis_date: str
     customer_info: str
     clean_core_score: float
     score_breakdown: dict[str, float]

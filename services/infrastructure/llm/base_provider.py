@@ -47,31 +47,58 @@ class BaseLLMProvider(LLMProvider, ABC):
     @staticmethod
     def _split_sections(report_text: str) -> ReportSections:
         """Split raw LLM output text into Executive Summary and Detailed Report."""
+        import re
+
+        normalized = report_text.replace("\r\n", "\n")
         marker = "---SECTION_SEPARATOR---"
-        
-        # 1. Try exact marker
-        if marker in report_text:
-            parts = report_text.split(marker, 1)
+
+        # 1) Exact marker or tolerant marker variant
+        if marker in normalized:
+            parts = normalized.split(marker, 1)
             return ReportSections(
                 executive_summary=parts[0].strip(),
                 detailed_report=parts[1].strip(),
             )
-            
-        # 2. Fallback to extracting by header
-        import re
-        fallback_match = re.search(r'(?i)##.+SECTION 2.+DETAILED REPORT', report_text)
-        if fallback_match:
-            split_index = fallback_match.start()
+
+        marker_match = re.search(r"(?i)-{3}\s*section[_\s-]*separator\s*-{3}", normalized)
+        if marker_match:
+            split_index = marker_match.start()
             return ReportSections(
-                executive_summary=report_text[:split_index].strip(),
-                detailed_report=report_text[split_index:].strip(),
+                executive_summary=normalized[:split_index].strip(),
+                detailed_report=normalized[marker_match.end():].strip(),
             )
 
-        # 3. Final fallback: If it's short, it's all summary. If long, split arbitrarily.
-        cutoff = min(len(report_text), 800)
+        # 2) Header-driven split (handles diverse markdown heading styles)
+        section2_pattern = re.compile(
+            r"(?im)^\s*(?:#{1,6}\s*)?(?:section\s*2\b.*|2[\)\.\:\-]?\s*detailed\s*report\b.*)$"
+        )
+        section2_match = section2_pattern.search(normalized)
+        if section2_match:
+            split_index = section2_match.start()
+            return ReportSections(
+                executive_summary=normalized[:split_index].strip(),
+                detailed_report=normalized[split_index:].strip(),
+            )
+
+        # 3) Final fallback: split text near cutoff to avoid duplicated sections
+        if len(normalized) > 240:
+            cutoff = min(len(normalized), 800)
+            if len(normalized) <= cutoff:
+                cutoff = max(160, len(normalized) // 2)
+            split_index = normalized.find("\n\n", cutoff)
+            if split_index == -1:
+                split_index = cutoff
+            summary = normalized[:split_index].strip()
+            detail = normalized[split_index:].strip()
+            if summary and detail and summary != detail:
+                return ReportSections(
+                    executive_summary=summary,
+                    detailed_report=detail,
+                )
+
         return ReportSections(
-            executive_summary=(report_text[:cutoff].strip() + "\n\n...(본문에서 계속)...") if len(report_text) > cutoff else report_text.strip(),
-            detailed_report=report_text.strip(),
+            executive_summary=normalized.strip(),
+            detailed_report=normalized.strip(),
         )
 
     @staticmethod

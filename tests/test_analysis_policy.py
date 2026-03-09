@@ -36,6 +36,40 @@ def _sample_input() -> CustomerInput:
 
 class AnalysisPolicyTests(unittest.TestCase):
     @patch("services.application.analysis_runner.FPDFRenderer.render", return_value=b"%PDF-test")
+    @patch("services.application.analysis_runner.GeminiLLMProvider.__init__", return_value=None)
+    @patch(
+        "services.application.analysis_runner.GeminiLLMProvider.generate_report",
+        return_value=ReportSections(
+            executive_summary="LLM EXEC SUMMARY",
+            detailed_report=("서술형 상세 보고서 " * 40),
+        ),
+    )
+    @patch("services.application.analysis_runner.ChromaRAGProvider.__init__", return_value=None)
+    @patch(
+        "services.application.analysis_runner.ChromaRAGProvider.get_context_bundle",
+        return_value=RAGContextBundle(context="[출처: x]\nctx", sources=["x"], chunk_count=1),
+    )
+    def test_hybrid_mode_enforces_structured_template_when_detail_is_unstructured(
+        self,
+        _mock_rag: object,
+        _mock_rag_init: object,
+        _mock_llm: object,
+        _mock_llm_init: object,
+        _mock_pdf: object,
+    ) -> None:
+        result = run_analysis(
+            _sample_input(),
+            policy=AnalysisPolicy(analysis_mode="hybrid", rag_enabled=True, llm_enabled=True),
+        )
+        self.assertEqual(result.output.generation_mode, "llm")
+        self.assertEqual(result.output.llm_status, "ok")
+        self.assertIn("## 1. 현황 분석", result.output.detailed_report)
+        self.assertIn(
+            "LLM_DETAIL_TEMPLATE_ENFORCED",
+            " ".join(result.output.validation_warnings),
+        )
+
+    @patch("services.application.analysis_runner.FPDFRenderer.render", return_value=b"%PDF-test")
     @patch("services.application.analysis_runner.GeminiLLMProvider.generate_report")
     @patch("services.application.analysis_runner.ChromaRAGProvider.__init__", return_value=None)
     @patch("services.application.analysis_runner.ChromaRAGProvider.get_context_bundle")

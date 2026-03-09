@@ -163,6 +163,21 @@ def extract_recommendations(calc: CalculationResult, inp: CustomerInput, lang: s
             [_fact("FACT_TIMELINE", months=inp.migration_timeline_months), _fact("FACT_MODULE_COUNT", count=len(inp.modules))],
         )
 
+    # 저위험/고성숙 케이스에서도 실행 가능한 액션이 최소 3개는 제공되도록 보강한다.
+    baseline_candidates = [
+        ("REC_LOW_RISK_GOVERNANCE", "REC_LOW_RISK_GOVERNANCE"),
+        ("REC_LOW_RISK_KPI_MONITORING", "REC_LOW_RISK_KPI_MONITORING"),
+        ("REC_LOW_RISK_ROADMAP", "REC_LOW_RISK_ROADMAP"),
+    ]
+    existing_rule_ids = {rid for trace in traces for rid in trace.rule_ids}
+    for msg_key, rule_id in baseline_candidates:
+        if len(traces) >= 3:
+            break
+        if rule_id in existing_rule_ids:
+            continue
+        _append(msg_key, rule_id, [base_score_fact])
+        existing_rule_ids.add(rule_id)
+
     if not traces:
         _append(
             "REC_DEFAULT_BASELINE",

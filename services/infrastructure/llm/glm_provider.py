@@ -17,6 +17,7 @@ _SYSTEM_PROMPT = """\
 너는 20년차 SAP Enterprise Architect다.
 입력된 정량 지표를 기반으로 한국어 보고서를 작성하라.
 반드시 수치와 리스크를 포함하고, 아래 두 섹션으로 구분하라.
+보고서의 기준일은 사용자 입력에 제공된 날짜를 사용하고, [귀하의 이름] 같은 플레이스홀더는 절대 쓰지 마라.
 
 ## SECTION 1: EXECUTIVE SUMMARY
 - 현재 상태 요약
@@ -59,6 +60,10 @@ class GLMLLMProvider(BaseLLMProvider):
 
     def _build_user_prompt(self, payload: ReportPayload) -> str:
         return (
+            "[리포트 작성 규칙]\n"
+            f"- 보고서 기준일: {payload.analysis_date}\n"
+            "- 위 기준일과 다른 임의 날짜를 쓰지 말 것\n"
+            "- [귀하의 이름], [회사명] 같은 플레이스홀더를 쓰지 말 것\n\n"
             "[고객 정보]\n"
             f"{payload.customer_info}\n\n"
             "[정량 지표]\n"
@@ -74,6 +79,33 @@ class GLMLLMProvider(BaseLLMProvider):
             "[RAG 컨텍스트]\n"
             f"{payload.rag_context or '(없음)'}\n"
         )
+
+    @staticmethod
+    def _build_usage(parsed: dict[str, object], report_text: str) -> LLMUsage:
+        usage_payload = parsed.get("usage")
+        if isinstance(usage_payload, dict):
+            prompt_tokens = int(usage_payload.get("prompt_tokens", 0) or 0)
+            completion_tokens = int(usage_payload.get("completion_tokens", 0) or 0)
+            total_tokens = int(usage_payload.get("total_tokens", 0) or 0)
+            if total_tokens <= 0:
+                total_tokens = prompt_tokens + completion_tokens
+            if prompt_tokens > 0 or completion_tokens > 0 or total_tokens > 0:
+                return LLMUsage(
+                    prompt_tokens=max(0, prompt_tokens),
+                    output_tokens=max(0, completion_tokens),
+                    total_tokens=max(0, total_tokens),
+                    source="provider",
+                )
+
+        estimated_output = int(len(report_text) / max(1.0, settings.LLM_TOKEN_ESTIMATE_CHAR_DIVISOR))
+        if estimated_output > 0:
+            return LLMUsage(
+                prompt_tokens=0,
+                output_tokens=estimated_output,
+                total_tokens=estimated_output,
+                source="estimated",
+            )
+        return LLMUsage()
 
     def _invoke_generate(self, payload: ReportPayload) -> ReportSections:
         body = {
@@ -123,7 +155,7 @@ class GLMLLMProvider(BaseLLMProvider):
         if not report_text.strip():
             raise LLMProviderError(ERR_LLM_PROVIDER, "Empty content from GLM response")
 
-        usage = LLMUsage()
+        usage = self._build_usage(parsed, report_text)
 
         sections = self._split_sections(report_text)
         return ReportSections(

@@ -10,6 +10,9 @@ REC_BUDGET_RATIO_OVER_70: "현재 운영 TCO가 연간 IT 예산의 70% 이상�
 REC_HIGH_CUSTOM_MODULE_BTP: "{high_custom_modules} 모듈의 핵심 커스텀은 SAP BTP Side-by-Side Extension으로 재구축을 검토하세요."
 REC_TIMELINE_TIGHT_PHASED: "모듈 수 대비 전환 기간이 촉박합니다. FI/CO 우선 전환 후 나머지를 단계적으로 진행하는 Phased Approach를 권고합니다."
 REC_DEFAULT_BASELINE: "핵심 모듈별로 표준 프로세스 적합성(Fit-to-Standard)을 먼저 점검하고 필수 커스텀만 남기는 정리 계획을 수립하세요."
+REC_LOW_RISK_GOVERNANCE: "현재 성숙도를 유지하려면 분기별 Fit-to-Standard 거버넌스 회의를 운영해 신규 커스텀 유입을 통제하세요."
+REC_LOW_RISK_KPI_MONITORING: "Clean Core KPI(신규 Z코드 수, 커스텀 비중, 배포 실패율)를 월 단위로 모니터링하고 임계치 초과 시 즉시 조치하세요."
+REC_LOW_RISK_ROADMAP: "향후 12개월 개선 로드맵(프로세스 표준화, BTP 확장 원칙, 기술부채 상한)을 문서화해 팀 간 실행 기준으로 사용하세요."
 
 FACT_CLEAN_CORE_SCORE: "Clean Core Score {score:.1f}/100"
 FACT_TCO_SAVINGS: "3년 누적 절감/증가 {savings:.2f}억원 (현재 {current:.2f}억원 → 전환 후 {projected:.2f}억원)"

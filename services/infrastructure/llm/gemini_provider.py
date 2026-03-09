@@ -71,6 +71,7 @@ REPORTER_SYSTEM = """\
 너는 20년차 SAP Enterprise Architect이자 글로벌 최고 컨설턴트이며, 최종 보고서를 작성한다.
 CIO와 경영진을 위한 설득력 있는 비즈니스 문서를 작성하라.
 반드시 한국어로 작성하며 전문적인 컨설팅 펌의 어조(격식 있고 명확한 문체)를 유지하라.
+보고서 기준일은 반드시 {analysis_date}를 사용하고, [귀하의 이름] 같은 플레이스홀더를 절대 출력하지 마라.
 
 [고객 정보]
 {customer_info}
@@ -107,13 +108,14 @@ CIO와 경영진을 위한 설득력 있는 비즈니스 문서를 작성하라.
 - 5. 리스크 억제 방안 (Risk Mitigation)
 - 6. 결론 및 Next Steps
 
-EXECUTIVE SUMMARY와 DETAILED REPORT를 반드시 "---SECTION_SEPARATOR---"로 구분하라.
+EXECUTIVE SUMMARY와 DETAILED REPORT를 반드시 단독 라인 "---SECTION_SEPARATOR---"로 구분하라.
 """
 
 SINGLE_PASS_SYSTEM = """\
 너는 20년차 SAP Enterprise Architect이자 글로벌 최고 컨설턴트이며, SAP Clean Core 사전진단 결과를 최종 보고서 형태로 작성한다.
 반드시 한국어로 작성하고, 경영진이 주목할 수 있도록 데이터와 숫자를 전면에 배치하라.
 마크다운의 인용구(>)나 굵은 글씨(**)를 적극 활용하여 전문적인 보고서 양식을 갖춰라.
+보고서 기준일은 반드시 {analysis_date}를 사용하고, [귀하의 이름]/[회사명] 같은 플레이스홀더는 절대 쓰지 마라.
 
 [고객 정보]
 {customer_info}
@@ -149,11 +151,90 @@ SINGLE_PASS_SYSTEM = """\
 - 4. 비즈니스 케이스 및 TCO (Business Case & TCO)
 - 5. 리스크 대응 및 Next Steps
 
-두 섹션을 반드시 "---SECTION_SEPARATOR---"로 구분하라.
+두 섹션을 반드시 단독 라인 "---SECTION_SEPARATOR---"로 구분하라.
 """
 
 def _extract_usage_map(response: Any) -> dict[str, Any]:
-    return {}
+    merged: dict[str, Any] = {}
+    if isinstance(response, dict):
+        merged.update(response)
+
+    for attr in ("usage_metadata", "token_usage", "usage"):
+        value = getattr(response, attr, None)
+        if isinstance(value, dict):
+            merged.update(value)
+
+    response_metadata = getattr(response, "response_metadata", None)
+    if isinstance(response_metadata, dict):
+        for key in ("usage_metadata", "token_usage", "usage"):
+            value = response_metadata.get(key)
+            if isinstance(value, dict):
+                merged.update(value)
+    return merged
+
+
+def _as_int(value: Any) -> int:
+    try:
+        return max(0, int(value))
+    except Exception:
+        return 0
+
+
+def _build_usage(response: Any, text: str) -> LLMUsage:
+    usage_map = _extract_usage_map(response)
+    prompt_tokens = _as_int(
+        usage_map.get("prompt_tokens")
+        or usage_map.get("input_tokens")
+        or usage_map.get("prompt_token_count")
+    )
+    output_tokens = _as_int(
+        usage_map.get("completion_tokens")
+        or usage_map.get("output_tokens")
+        or usage_map.get("candidates_token_count")
+    )
+    total_tokens = _as_int(
+        usage_map.get("total_tokens")
+        or usage_map.get("total_token_count")
+    )
+
+    if total_tokens <= 0 and (prompt_tokens > 0 or output_tokens > 0):
+        total_tokens = prompt_tokens + output_tokens
+
+    if prompt_tokens > 0 or output_tokens > 0 or total_tokens > 0:
+        return LLMUsage(
+            prompt_tokens=prompt_tokens,
+            output_tokens=output_tokens,
+            total_tokens=total_tokens,
+            source="provider",
+        )
+
+    estimated_output = _as_int(len(text) / max(1.0, settings.LLM_TOKEN_ESTIMATE_CHAR_DIVISOR))
+    if estimated_output > 0:
+        return LLMUsage(
+            prompt_tokens=0,
+            output_tokens=estimated_output,
+            total_tokens=estimated_output,
+            source="estimated",
+        )
+    return LLMUsage()
+
+
+def _merge_usage(usages: list[LLMUsage]) -> LLMUsage:
+    prompt_tokens = sum(max(0, int(u.prompt_tokens)) for u in usages)
+    output_tokens = sum(max(0, int(u.output_tokens)) for u in usages)
+    total_tokens = sum(max(0, int(u.total_tokens)) for u in usages)
+    if any(u.source == "provider" for u in usages):
+        source = "provider"
+    elif any(u.source == "estimated" for u in usages):
+        source = "estimated"
+    else:
+        source = "none"
+    return LLMUsage(
+        prompt_tokens=prompt_tokens,
+        output_tokens=output_tokens,
+        total_tokens=total_tokens,
+        source=source,
+    )
 
 class GeminiLLMProvider(BaseLLMProvider):
     """Infrastructure-facing Gemini provider adapter."""
@@ -199,7 +280,7 @@ class GeminiLLMProvider(BaseLLMProvider):
                 raise LLMProviderError(ERR_LLM_PROVIDER, str(e))
 
         text = self._extract_text(getattr(response, "content", response))
-        return (text, LLMUsage())
+        return (text, _build_usage(response, text))
 
     def _invoke_generate(self, payload: ReportPayload) -> ReportSections:
         if self._pipeline_mode == "three_chain":
@@ -213,6 +294,7 @@ class GeminiLLMProvider(BaseLLMProvider):
         ])
         chain = single_prompt | self._llm
         inputs = {
+            "analysis_date": payload.analysis_date,
             "customer_info": payload.customer_info,
             "clean_core_score": payload.clean_core_score,
             "score_breakdown": payload.score_breakdown,
@@ -227,8 +309,7 @@ class GeminiLLMProvider(BaseLLMProvider):
         }
         report, usage = self._invoke_text_with_usage(chain, inputs)
         sections = self._split_sections(report)
-        usage = LLMUsage()
-        
+
         return ReportSections(
             executive_summary=sections.executive_summary,
             detailed_report=sections.detailed_report,
@@ -278,6 +359,7 @@ class GeminiLLMProvider(BaseLLMProvider):
         ])
         reporter_chain = reporter_prompt | self._llm
         report_inputs = {
+            "analysis_date": payload.analysis_date,
             "customer_info": payload.customer_info,
             "analysis": analysis,
             "architecture": architecture,
@@ -289,7 +371,7 @@ class GeminiLLMProvider(BaseLLMProvider):
         report, usage_reporter = self._invoke_text_with_usage(reporter_chain, report_inputs)
         sections = self._split_sections(report)
 
-        total_usage = LLMUsage()
+        total_usage = _merge_usage([usage_analyst, usage_architect, usage_reporter])
 
         return ReportSections(
             executive_summary=sections.executive_summary,

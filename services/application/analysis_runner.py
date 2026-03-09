@@ -7,7 +7,9 @@ import logging
 import os
 import time
 import concurrent.futures
+import re
 from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
 from typing import Literal
 from uuid import uuid4
@@ -183,6 +185,67 @@ def _monthly_llm_projection_usd(cost_per_request_usd: float) -> dict[str, float]
     }
 
 
+def _collect_report_quality_issues(sections: ReportSections, analysis_date: str) -> list[str]:
+    summary = sections.executive_summary.strip()
+    detailed = sections.detailed_report.strip()
+    combined = f"{summary}\n{detailed}".strip()
+    issues: list[str] = []
+
+    if not summary:
+        issues.append("EMPTY_EXECUTIVE_SUMMARY")
+    if not detailed:
+        issues.append("EMPTY_DETAILED_REPORT")
+    if summary and detailed and summary == detailed:
+        issues.append("DUPLICATED_SECTIONS")
+
+    placeholder_pattern = re.compile(
+        r"\[(?:귀하|귀사|작성자|컨설턴트|이름|직책|회사명|담당자)[^\]\n]{0,40}\]"
+    )
+    if placeholder_pattern.search(combined):
+        issues.append("PLACEHOLDER_TOKEN")
+
+    expected_year = analysis_date[:4] if analysis_date else ""
+    if expected_year:
+        labeled_date_pattern = re.compile(
+            r"(?:일자|날짜|보고\s*일자|작성일|기준일)\s*[:：]?\s*(20\d{2})년\s*\d{1,2}월\s*\d{1,2}일"
+        )
+        top_lines = combined.splitlines()[:20]
+        top_date_pattern = re.compile(r"(20\d{2})년\s*\d{1,2}월\s*\d{1,2}일")
+        ignore_context_pattern = re.compile(r"(유지보수|종료|마감|mainstream|extended)", re.IGNORECASE)
+
+        mismatch = False
+        for line in top_lines:
+            for year in labeled_date_pattern.findall(line):
+                if year != expected_year:
+                    mismatch = True
+                    break
+            if mismatch:
+                break
+
+            # Guard for top-of-report date lines without explicit labels.
+            if ignore_context_pattern.search(line):
+                continue
+            for year in top_date_pattern.findall(line):
+                if year != expected_year:
+                    mismatch = True
+                    break
+            if mismatch:
+                break
+
+        if mismatch:
+            issues.append("REPORT_DATE_MISMATCH")
+
+    # Mock-based unit tests may provide very short placeholders like "LLM EXEC".
+    if len(combined) >= 300:
+        detail_structure_pattern = re.compile(
+            r"(?im)(section\s*2|detailed\s*report|^\s*##\s*1\.|^\s*###\s*1\.)"
+        )
+        if not detail_structure_pattern.search(detailed):
+            issues.append("MISSING_DETAILED_STRUCTURE")
+
+    return issues
+
+
 def _build_report_payload(
     inp: CustomerInput,
     calc: CalculationResult,
@@ -199,6 +262,7 @@ def _build_report_payload(
     )
 
     return ReportPayload(
+        analysis_date=datetime.now().strftime("%Y-%m-%d"),
         customer_info=customer_info,
         clean_core_score=calc.clean_core_score,
         score_breakdown=calc.score_breakdown,
@@ -253,6 +317,18 @@ def _build_fallback_reports(
         + "\n".join(f"- {rec}" for rec in recommendations[:5])
     )
     return ReportSections(executive_summary=summary, detailed_report=detailed)
+
+
+def _enforce_detailed_template(llm_detailed: str, fallback_detailed: str) -> str:
+    llm_body = llm_detailed.strip()
+    if not llm_body:
+        return fallback_detailed
+    return (
+        f"{fallback_detailed}\n\n"
+        "---\n\n"
+        "## 7. LLM 서술 보강 (참고)\n"
+        f"{llm_body}"
+    )
 
 
 def _write_analysis_artifact(result: AnalysisResult) -> None:
@@ -331,6 +407,9 @@ def run_analysis(
     generation_error_code: str | None = ERR_LLM_DISABLED
     llm_status: LLMStatus = "skipped"
     llm_usage = LLMUsage()
+    llm_quality_issues: list[str] = []
+    llm_quality_warnings: list[str] = []
+    llm_template_enforced = False
 
     should_try_llm = (
         effective_policy.analysis_mode in {"hybrid", "llm_only"}
@@ -343,20 +422,78 @@ def run_analysis(
         try:
             provider = _create_llm_provider(provider_name)
             generation_provider = provider.provider_name
-            executor = concurrent.futures.ThreadPoolExecutor(max_workers=1)
-            future = executor.submit(provider.generate_report, payload)
-            try:
-                remaining_timeout = _remaining_timeout_sec(total_start, effective_policy.timeout_ms)
-                if remaining_timeout is None:
-                    sections = future.result()
-                else:
-                    sections = future.result(timeout=remaining_timeout)
-            finally:
-                executor.shutdown(wait=False, cancel_futures=True)
-            llm_usage = sections.usage
-            generation_mode = "llm"
-            generation_error_code = None
-            llm_status = "ok"
+            max_quality_retry = 1
+            for quality_attempt in range(max_quality_retry + 1):
+                executor = concurrent.futures.ThreadPoolExecutor(max_workers=1)
+                future = executor.submit(provider.generate_report, payload)
+                try:
+                    remaining_timeout = _remaining_timeout_sec(total_start, effective_policy.timeout_ms)
+                    if remaining_timeout is None:
+                        candidate_sections = future.result()
+                    else:
+                        candidate_sections = future.result(timeout=remaining_timeout)
+                finally:
+                    executor.shutdown(wait=False, cancel_futures=True)
+
+                issues = _collect_report_quality_issues(
+                    candidate_sections,
+                    payload.analysis_date,
+                )
+                fatal_issue_codes = {
+                    "EMPTY_EXECUTIVE_SUMMARY",
+                    "EMPTY_DETAILED_REPORT",
+                    "DUPLICATED_SECTIONS",
+                    "PLACEHOLDER_TOKEN",
+                    "REPORT_DATE_MISMATCH",
+                }
+                fatal_issues = [code for code in issues if code in fatal_issue_codes]
+                non_fatal_issues = [code for code in issues if code not in fatal_issue_codes]
+
+                if fatal_issues:
+                    llm_quality_issues = fatal_issues
+                    logger.warning(
+                        "LLM output contract check failed (attempt %d/%d): %s",
+                        quality_attempt + 1,
+                        max_quality_retry + 1,
+                        ", ".join(fatal_issues),
+                    )
+                    if (
+                        quality_attempt < max_quality_retry
+                        and not _timeout_hit(total_start, effective_policy.timeout_ms)
+                    ):
+                        continue
+                    raise LLMProviderError(
+                        ERR_LLM_PROVIDER,
+                        f"LLM output contract violation: {', '.join(fatal_issues)}",
+                    )
+
+                if "MISSING_DETAILED_STRUCTURE" in non_fatal_issues:
+                    candidate_sections = ReportSections(
+                        executive_summary=candidate_sections.executive_summary,
+                        detailed_report=_enforce_detailed_template(
+                            candidate_sections.detailed_report,
+                            fallback_sections.detailed_report,
+                        ),
+                        usage=candidate_sections.usage,
+                    )
+                    llm_template_enforced = True
+                    non_fatal_issues = [
+                        code for code in non_fatal_issues if code != "MISSING_DETAILED_STRUCTURE"
+                    ]
+
+                sections = candidate_sections
+                llm_usage = candidate_sections.usage
+                llm_quality_issues = []
+                llm_quality_warnings = non_fatal_issues
+                if llm_quality_warnings:
+                    logger.warning(
+                        "LLM output accepted with non-fatal quality warnings: %s",
+                        ", ".join(llm_quality_warnings),
+                    )
+                generation_mode = "llm"
+                generation_error_code = None
+                llm_status = "ok"
+                break
         except concurrent.futures.TimeoutError:
             generation_mode = "fallback"
             generation_error_code = ERR_LLM_PROVIDER
@@ -386,6 +523,18 @@ def run_analysis(
         )
     if _timeout_hit(total_start, effective_policy.timeout_ms):
         validation_warnings.append("ANALYSIS_TIMEOUT: 타임아웃 임계치 도달로 일부 단계를 건너뛰었습니다.")
+    if llm_quality_issues and llm_status != "ok":
+        validation_warnings.append(
+            f"LLM_OUTPUT_QUALITY_FALLBACK: 형식/날짜/플레이스홀더 검증 실패({', '.join(llm_quality_issues)})로 규칙 기반 보고서를 사용했습니다."
+        )
+    if llm_quality_warnings and llm_status == "ok":
+        validation_warnings.append(
+            f"LLM_OUTPUT_FORMAT_WARNING: 상세 섹션 구조가 약해 후속 편집을 권장합니다({', '.join(llm_quality_warnings)})."
+        )
+    if llm_template_enforced and llm_status == "ok":
+        validation_warnings.append(
+            "LLM_DETAIL_TEMPLATE_ENFORCED: 상세 섹션 구조가 약해 규칙 기반 템플릿으로 보강했습니다."
+        )
 
     llm_usage_tokens = _usage_tokens_map(llm_usage)
     llm_cost_estimate_usd = _estimate_llm_cost_usd(llm_usage)
