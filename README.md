@@ -139,11 +139,13 @@ config/                            # settings, rulesets
 models/                            # pydantic schemas
 services/
   application/analysis_runner.py   # orchestration policy (slim)
+  application/llm_costs.py         # provider usage token/cost helpers
   application/report_content.py    # report payload/fallback/quality helpers
   application/report_preflight.py  # pre-confirm + PDF gate helpers
   cost_calculator.py               # KPI calculations
   domain/                          # recommendation/evidence/validation
   infrastructure/                  # llm/rag/pdf adapters
+ui/sidebar.py                      # sidebar/support-pack rendering
 tests/                             # unit tests
 tools/verify_sources.py            # source catalog validator
 tools/snapshot_sources.py          # source snapshot/hash refresh
@@ -234,6 +236,7 @@ make qa-report
 - `make check-import-cycles` → No internal import cycles detected
 - `make verify-sources` → `[]`
 - `make verify-report-preconfirm` → PASS
+- Refactor KPI snapshot: `analysis_runner.py` 444 lines / `app.py` 196 lines
 
 예시(결정론 샘플 케이스 기준 기대값):
 - Clean Core Score: `42.6`

@@ -14,6 +14,11 @@ from uuid import uuid4
 from dotenv import load_dotenv
 
 from models.schemas import AdvisorOutput, CustomerInput
+from services.application.llm_costs import (
+    estimate_llm_cost_usd,
+    monthly_llm_projection_usd,
+    usage_tokens_map,
+)
 from services.application.report_content import (
     build_fallback_reports,
     build_report_payload,
@@ -138,28 +143,6 @@ def _normalize_llm_error_code(code: str | None) -> str:
         "PROVIDER_UNKNOWN_ERROR": ERR_LLM_PROVIDER,
     }
     return code_map.get(normalized, ERR_LLM_PROVIDER)
-
-
-def _usage_tokens_map(usage: LLMUsage) -> dict[str, int]:
-    return {
-        "prompt_tokens": max(0, int(usage.prompt_tokens)),
-        "output_tokens": max(0, int(usage.output_tokens)),
-        "total_tokens": max(0, int(usage.total_tokens)),
-    }
-
-
-def _estimate_llm_cost_usd(usage: LLMUsage) -> float:
-    prompt_cost = (max(0, usage.prompt_tokens) / 1_000_000) * settings.LLM_PRICE_INPUT_PER_1M
-    output_cost = (max(0, usage.output_tokens) / 1_000_000) * settings.LLM_PRICE_OUTPUT_PER_1M
-    return round(prompt_cost + output_cost, 8)
-
-
-def _monthly_llm_projection_usd(cost_per_request_usd: float) -> dict[str, float]:
-    monthly_requests = max(0.0, float(settings.LLM_MONTHLY_REQUESTS))
-    return {
-        "monthly_requests": round(monthly_requests, 2),
-        "estimated_usd": round(cost_per_request_usd * monthly_requests, 4),
-    }
 
 
 def _write_analysis_artifact(result: AnalysisResult) -> None:
@@ -367,9 +350,9 @@ def run_analysis(
             "LLM_DETAIL_TEMPLATE_ENFORCED: 상세 섹션 구조가 약해 규칙 기반 템플릿으로 보강했습니다."
         )
 
-    llm_usage_tokens = _usage_tokens_map(llm_usage)
-    llm_cost_estimate_usd = _estimate_llm_cost_usd(llm_usage)
-    llm_monthly_projection_usd = _monthly_llm_projection_usd(llm_cost_estimate_usd)
+    llm_usage_tokens = usage_tokens_map(llm_usage)
+    llm_cost_estimate_usd = estimate_llm_cost_usd(llm_usage)
+    llm_monthly_projection_usd = monthly_llm_projection_usd(llm_cost_estimate_usd)
 
     output = AdvisorOutput(
         clean_core_score=calc.clean_core_score,

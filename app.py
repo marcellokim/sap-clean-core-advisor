@@ -3,8 +3,6 @@
 입력 → 규칙 기반 계산 → AI 분석(RAG) → 시각화 → PDF 다운로드 전체 플로우를 통합합니다.
 """
 
-import io
-import zipfile
 from pathlib import Path
 
 import streamlit as st
@@ -14,6 +12,7 @@ from services.infrastructure.rag.chroma_provider import get_cached_vector_store
 from ui.dashboard import render_dashboard
 from ui.input_form import render_input_form
 from ui.policy import get_locked_analysis_policy
+from ui.sidebar import render_sidebar
 from ui.styles import apply_global_styles
 from config.settings import settings
 from ui.locales import _
@@ -24,35 +23,6 @@ LOGO_PATH = Path(__file__).resolve().parent / "data" / "assets" / "sap_logo.svg"
 
 def _current_llm_provider() -> str:
     return settings.LLM_PROVIDER.strip().lower() or "gemini"
-
-
-def _build_support_pack_zip(language_mode: str) -> bytes:
-    """Build downloadable EA support pack ZIP bytes."""
-    include_all = language_mode == "ALL"
-    language_suffix = f"_{language_mode}.md"
-    candidates: list[Path] = []
-    for folder in ("workshop-kit", "joule-playbook", "ops-toolkit", "ea-cookbook"):
-        folder_path = DOCS_ROOT / folder
-        if not folder_path.exists():
-            continue
-        for path in sorted(folder_path.glob("*")):
-            if path.is_dir():
-                continue
-            name = path.name
-            if include_all:
-                candidates.append(path)
-            else:
-                if name.endswith(language_suffix):
-                    candidates.append(path)
-                elif "_KO" not in name and "_EN" not in name:
-                    candidates.append(path)
-
-    buf = io.BytesIO()
-    with zipfile.ZipFile(buf, "w", compression=zipfile.ZIP_DEFLATED) as zf:
-        for path in candidates:
-            arcname = str(path.relative_to(DOCS_ROOT.parent))
-            zf.write(path, arcname=arcname)
-    return buf.getvalue()
 
 # ────────────────────────────────────────────────────────────────────
 # 페이지 설정
@@ -70,60 +40,7 @@ apply_global_styles()
 # ────────────────────────────────────────────────────────────────────
 # 사이드바
 # ────────────────────────────────────────────────────────────────────
-with st.sidebar:
-    if LOGO_PATH.exists():
-        st.image(str(LOGO_PATH), width=120)
-    else:
-        st.markdown("### SAP")
-    
-    st.markdown("## RISE with SAP")
-    st.markdown("### Clean Core Assessment\n& TCO Simulator")
-    st.divider()
-
-    ui_lang = st.selectbox("UI Language / 언어", options=["KO", "EN"], index=0)
-    st.session_state["ui_lang"] = ui_lang
-
-    target_persona_ko = """
-        **Target Persona**
-        - 🏢 국내 중견 제조기업 CIO
-        - 📦 15년+ 된 ECC 6.0 운영 중
-        - 🔧 다수의 Z-code로 시스템 복잡도 ↑
-        - 💰 클라우드 전환 검토 중
-
-        **이 도구의 가치**
-        - ⏱️ 초기 진단을 1분 만에 완료
-        - 📊 Clean Core Score 자동 산출
-        - 💹 TCO 절감 효과를 숫자로 증명
-        - 📄 임원 보고용 EA Cookbook 즉시 생성
-        """
-    target_persona_en = """
-        **Target Persona**
-        - 🏢 CIO of Mid-sized Manufacturing
-        - 📦 15+ years on ECC 6.0
-        - 🔧 High complexity due to Z-code
-        - 💰 Evaluating Cloud Migration
-
-        **Value of this tool**
-        - ⏱️ Initial assessment in 1 minute
-        - 📊 Auto-calculated Clean Core Score
-        - 💹 TCO savings proven in numbers
-        - 📄 Instantly generate EA Cookbook for execs
-        """
-    st.markdown(_(target_persona_ko, target_persona_en))
-    st.divider()
-    pack_lang = st.selectbox(
-        _("EA Support Pack Language", "EA Support Pack Language"),
-        options=["KO", "EN", "ALL"],
-        index=0,
-    )
-    support_zip = _build_support_pack_zip(pack_lang)
-    st.download_button(
-        label=_("📦 Download EA Support Pack", "📦 Download EA Support Pack"),
-        data=support_zip,
-        file_name=f"EA_Support_Pack_{pack_lang}.zip",
-        mime="application/zip",
-        width="stretch",
-    )
+render_sidebar(LOGO_PATH, DOCS_ROOT)
 
 
 # ────────────────────────────────────────────────────────────────────
