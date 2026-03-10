@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import json
 import re
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -13,9 +14,47 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 
 
+def _iter_target_files(targets: list[str]) -> list[Path]:
+    files: list[Path] = []
+    for target in targets:
+        path = ROOT / target
+        if path.is_file():
+            files.append(path)
+            continue
+        if not path.is_dir():
+            continue
+        for child in path.rglob("*"):
+            if not child.is_file():
+                continue
+            if any(part in {"__pycache__", ".git", ".venv", ".omx"} for part in child.parts):
+                continue
+            files.append(child)
+    return files
+
+
+def _python_grep(pattern: str, targets: list[str]) -> str:
+    compiled = re.compile(pattern)
+    matches: list[str] = []
+    for file_path in _iter_target_files(targets):
+        try:
+            text = file_path.read_text(encoding="utf-8", errors="ignore")
+        except OSError:
+            continue
+        rel = file_path.relative_to(ROOT)
+        for lineno, line in enumerate(text.splitlines(), start=1):
+            if compiled.search(line):
+                matches.append(f"{rel}:{lineno}:{line}")
+    return "\n".join(matches)
+
+
 def _rg(pattern: str, targets: list[str]) -> str:
+    if shutil.which("rg") is None:
+        return _python_grep(pattern, targets)
     cmd = ["rg", "-n", pattern, *targets]
-    result = subprocess.run(cmd, cwd=ROOT, capture_output=True, text=True)
+    try:
+        result = subprocess.run(cmd, cwd=ROOT, capture_output=True, text=True)
+    except FileNotFoundError:
+        return _python_grep(pattern, targets)
     if result.returncode == 0:
         return result.stdout.strip()
     if result.returncode == 1:
