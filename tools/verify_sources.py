@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
-"""Validate source catalog schema, staleness, and optional URL reachability."""
+"""Validate source catalog schema, staleness, snapshot integrity, and optional URL reachability."""
 
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
-import os
+import re
 import sys
 import urllib.error
 import urllib.request
@@ -13,6 +14,7 @@ from dataclasses import dataclass
 from datetime import date, datetime
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlparse
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 if str(PROJECT_ROOT) not in sys.path:
@@ -26,6 +28,7 @@ DEFAULT_CATALOG_PATH = PROJECT_ROOT / "docs" / "sources.yaml"
 ALLOWED_TIERS = {"official", "benchmark", "academic"}
 ALLOWED_ACCESS = {"open", "membership", "login_required"}
 ALLOWED_METHODS = {"manual", "script"}
+ALLOWED_QUOTE_POLICIES = {"summary_only", "short_quote", "no_verbatim"}
 
 
 @dataclass(frozen=True)
@@ -42,6 +45,39 @@ def load_source_catalog(path: Path = DEFAULT_CATALOG_PATH) -> list[dict[str, Any
     return [s for s in sources if isinstance(s, dict)]
 
 
+def _parse_iso_date(raw: Any) -> date | None:
+    try:
+        return datetime.strptime(str(raw), "%Y-%m-%d").date()
+    except ValueError:
+        return None
+
+
+def _normalize_domain(domain: str) -> str:
+    normalized = domain.strip().lower()
+    if normalized.startswith("www."):
+        normalized = normalized[4:]
+    return normalized
+
+
+def _domain_matches(url: str, publisher_domain: str) -> bool:
+    host = _normalize_domain(urlparse(url).netloc.split(":")[0])
+    pub = _normalize_domain(publisher_domain)
+    if not host or not pub:
+        return False
+    return host == pub or host.endswith(f".{pub}")
+
+
+def _resolve_snapshot_path(snapshot_path: str) -> Path:
+    candidate = Path(snapshot_path)
+    if candidate.is_absolute():
+        return candidate
+    return PROJECT_ROOT / candidate
+
+
+def _is_valid_sha256(raw: str) -> bool:
+    return bool(re.fullmatch(r"[0-9a-f]{64}", raw))
+
+
 def validate_source_schema(sources: list[dict[str, Any]]) -> list[SourceIssue]:
     issues: list[SourceIssue] = []
     required = {
@@ -53,6 +89,13 @@ def validate_source_schema(sources: list[dict[str, Any]]) -> list[SourceIssue]:
         "claims_supported",
         "last_verified_date",
         "verification_method",
+        "publisher_domain",
+        "jurisdiction",
+        "effective_from",
+        "effective_to",
+        "snapshot_hash",
+        "snapshot_path",
+        "quote_policy",
     }
     seen: set[str] = set()
 
@@ -74,11 +117,60 @@ def validate_source_schema(sources: list[dict[str, Any]]) -> list[SourceIssue]:
             issues.append(SourceIssue(sid, f"invalid verification_method: {src['verification_method']}"))
         if not isinstance(src["claims_supported"], list) or not src["claims_supported"]:
             issues.append(SourceIssue(sid, "claims_supported must be non-empty list"))
+        if not isinstance(src["jurisdiction"], str) or not str(src["jurisdiction"]).strip():
+            issues.append(SourceIssue(sid, "jurisdiction must be non-empty string"))
+        if src["quote_policy"] not in ALLOWED_QUOTE_POLICIES:
+            issues.append(SourceIssue(sid, f"invalid quote_policy: {src['quote_policy']}"))
 
-        try:
-            datetime.strptime(str(src["last_verified_date"]), "%Y-%m-%d")
-        except ValueError:
+        if not _domain_matches(str(src["url"]), str(src["publisher_domain"])):
+            issues.append(
+                SourceIssue(
+                    sid,
+                    f"publisher_domain mismatch (url={src['url']}, publisher_domain={src['publisher_domain']})",
+                )
+            )
+
+        verified = _parse_iso_date(src["last_verified_date"])
+        if verified is None:
             issues.append(SourceIssue(sid, "last_verified_date must be YYYY-MM-DD"))
+
+        effective_from = _parse_iso_date(src["effective_from"])
+        if effective_from is None:
+            issues.append(SourceIssue(sid, "effective_from must be YYYY-MM-DD"))
+
+        effective_to_raw = src.get("effective_to")
+        effective_to: date | None
+        if effective_to_raw is None or str(effective_to_raw).strip().lower() in {"", "null", "none"}:
+            effective_to = None
+        else:
+            effective_to = _parse_iso_date(effective_to_raw)
+            if effective_to is None:
+                issues.append(SourceIssue(sid, "effective_to must be YYYY-MM-DD or null"))
+        if effective_from and effective_to and effective_to < effective_from:
+            issues.append(SourceIssue(sid, "effective_to must be >= effective_from"))
+
+        snapshot_path_raw = str(src.get("snapshot_path", "")).strip()
+        if not snapshot_path_raw:
+            issues.append(SourceIssue(sid, "snapshot_path must be non-empty"))
+            continue
+        snapshot_path = _resolve_snapshot_path(snapshot_path_raw)
+        if not snapshot_path.exists():
+            issues.append(SourceIssue(sid, f"snapshot_path not found: {snapshot_path_raw}"))
+            continue
+
+        snapshot_hash = str(src.get("snapshot_hash", "")).strip().lower()
+        if not _is_valid_sha256(snapshot_hash):
+            issues.append(SourceIssue(sid, "snapshot_hash must be 64-char lowercase hex sha256"))
+            continue
+
+        file_hash = hashlib.sha256(snapshot_path.read_bytes()).hexdigest()
+        if file_hash != snapshot_hash:
+            issues.append(
+                SourceIssue(
+                    sid,
+                    f"snapshot_hash mismatch (catalog={snapshot_hash}, actual={file_hash})",
+                )
+            )
     return issues
 
 

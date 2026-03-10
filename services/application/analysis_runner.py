@@ -19,6 +19,7 @@ from dotenv import load_dotenv
 from models.schemas import AdvisorOutput, CustomerInput
 from services.cost_calculator import CalculationResult, run_calculation
 from services.domain.evidence_engine import build_evidence_ledger
+from services.domain.claim_extractor import extract_report_claims
 from services.domain.citation_validator import validate_citation_coverage
 from services.domain.date_claim_validator import validate_date_claims
 from services.domain.recommendation_engine import (
@@ -580,8 +581,13 @@ def run_analysis(
     preconfirm_issues = []
     citation_metrics = None
     if settings.REPORT_PREFLIGHT_ENABLE:
+        report_claims = extract_report_claims(
+            output.executive_summary,
+            output.detailed_report,
+        )
         citation_issues, citation_metrics = validate_citation_coverage(
             output.evidence_ledger,
+            report_claims,
             strict_reference_ids=True,
         )
         consistency_issues = validate_report_consistency(output)

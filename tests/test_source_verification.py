@@ -23,7 +23,7 @@ class SourceVerificationTests(unittest.TestCase):
         issues = find_stale_sources(
             sources=sources,
             max_age_days=90,
-            reference_date=date(2026, 2, 16),
+            reference_date=date(2026, 3, 10),
         )
         self.assertFalse(issues, f"staleness issues: {issues}")
 
@@ -32,7 +32,7 @@ class SourceVerificationTests(unittest.TestCase):
         issues = find_stale_sources(
             sources=sources,
             max_age_days=90,
-            reference_date=date(2027, 2, 16),
+            reference_date=date(2027, 3, 10),
         )
         self.assertTrue(issues)
 

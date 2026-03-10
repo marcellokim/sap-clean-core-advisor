@@ -25,13 +25,5 @@ jobs:
       - name: Sync dependencies
         run: uv sync --frozen
 
-      - name: Run unit tests
-        run: uv run python -m unittest discover -s tests -v
-
-      - name: Verify source catalog
-        run: uv run python tools/verify_sources.py --skip-http --json
-
-      - name: Verify report pre-confirm gates
-        run: |
-          uv run python tools/verify_citations.py --json
-          uv run python tools/verify_report_consistency.py --json
+      - name: Run report QA gate
+        run: make qa-report

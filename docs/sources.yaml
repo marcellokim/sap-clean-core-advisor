@@ -9,8 +9,15 @@
       "claims_supported": [
         "LLM quota and retry policy"
       ],
-      "last_verified_date": "2026-02-16",
-      "verification_method": "script"
+      "last_verified_date": "2026-03-10",
+      "verification_method": "script",
+      "snapshot_path": "docs/source_snapshots/SRC_GOOGLE_GEMINI_RATE_LIMITS/2026-03-10.html",
+      "snapshot_hash": "05102b43aef949e1fbec880241ed6a99900e3aeb876a41961617fcd1c0d284a6",
+      "effective_from": "2026-03-10",
+      "effective_to": null,
+      "jurisdiction": "global",
+      "quote_policy": "summary_only",
+      "publisher_domain": "ai.google.dev"
     },
     {
       "source_id": "SRC_SAP_MAINTENANCE_STRATEGY",
@@ -21,8 +28,15 @@
       "claims_supported": [
         "ECC/S4 maintenance timeline and transition urgency"
       ],
-      "last_verified_date": "2026-02-16",
-      "verification_method": "script"
+      "last_verified_date": "2026-03-10",
+      "verification_method": "script",
+      "snapshot_path": "docs/source_snapshots/SRC_SAP_MAINTENANCE_STRATEGY/2026-03-10.html",
+      "snapshot_hash": "e5d7ba0240db62b625503a4176f9915ca4201c8d4c11ae1e2d1a537fbc7812c8",
+      "effective_from": "2026-03-10",
+      "effective_to": null,
+      "jurisdiction": "global",
+      "quote_policy": "summary_only",
+      "publisher_domain": "support.sap.com"
     },
     {
       "source_id": "SRC_SAP_CLEAN_CORE",
@@ -33,8 +47,15 @@
       "claims_supported": [
         "Clean Core principle and extension pattern"
       ],
-      "last_verified_date": "2026-02-16",
-      "verification_method": "script"
+      "last_verified_date": "2026-03-10",
+      "verification_method": "script",
+      "snapshot_path": "docs/source_snapshots/SRC_SAP_CLEAN_CORE/2026-03-10.html",
+      "snapshot_hash": "78c17c5291fb6d2a98a611d1cca79644fa8d402979efc35d351b2334742588c4",
+      "effective_from": "2026-03-10",
+      "effective_to": null,
+      "jurisdiction": "global",
+      "quote_policy": "summary_only",
+      "publisher_domain": "sap.com"
     },
     {
       "source_id": "SRC_SAP_READINESS_CHECK",
@@ -45,8 +66,15 @@
       "claims_supported": [
         "Migration readiness and analysis workflow"
       ],
-      "last_verified_date": "2026-02-16",
-      "verification_method": "script"
+      "last_verified_date": "2026-03-10",
+      "verification_method": "script",
+      "snapshot_path": "docs/source_snapshots/SRC_SAP_READINESS_CHECK/2026-03-10.html",
+      "snapshot_hash": "45583ada8ddfa517a89424a235be38819714f3b75e6273a2fb6f6d07326aa5b7",
+      "effective_from": "2026-03-10",
+      "effective_to": null,
+      "jurisdiction": "global",
+      "quote_policy": "summary_only",
+      "publisher_domain": "help.sap.com"
     },
     {
       "source_id": "SRC_SAP_CUSTOM_CODE_MIGRATION",
@@ -57,8 +85,15 @@
       "claims_supported": [
         "Custom code analysis and remediation categories"
       ],
-      "last_verified_date": "2026-02-16",
-      "verification_method": "script"
+      "last_verified_date": "2026-03-10",
+      "verification_method": "script",
+      "snapshot_path": "docs/source_snapshots/SRC_SAP_CUSTOM_CODE_MIGRATION/2026-03-10.html",
+      "snapshot_hash": "570725ede540b7b3f0eea024dd282e6cd8e3185765b8a1b372755b8ad15ac9aa",
+      "effective_from": "2026-03-10",
+      "effective_to": null,
+      "jurisdiction": "global",
+      "quote_policy": "summary_only",
+      "publisher_domain": "help.sap.com"
     },
     {
       "source_id": "SRC_ASUG_S4_ADOPTION",
@@ -69,8 +104,15 @@
       "claims_supported": [
         "Market benchmark for S/4 migration outcomes"
       ],
-      "last_verified_date": "2026-02-16",
-      "verification_method": "script"
+      "last_verified_date": "2026-03-10",
+      "verification_method": "script",
+      "snapshot_path": "docs/source_snapshots/SRC_ASUG_S4_ADOPTION/2026-03-10.html",
+      "snapshot_hash": "bc72e4813418c61e0eddd2f7a02223d82028b1da6863e753b16cfe36236b9cb7",
+      "effective_from": "2026-03-10",
+      "effective_to": null,
+      "jurisdiction": "global",
+      "quote_policy": "summary_only",
+      "publisher_domain": "asug.com"
     },
     {
       "source_id": "SRC_SAPINSIDER_MIGRATION_2025",
@@ -81,8 +123,15 @@
       "claims_supported": [
         "Migration project benchmark and risk patterns"
       ],
-      "last_verified_date": "2026-02-16",
-      "verification_method": "script"
+      "last_verified_date": "2026-03-10",
+      "verification_method": "script",
+      "snapshot_path": "docs/source_snapshots/SRC_SAPINSIDER_MIGRATION_2025/2026-03-10.html",
+      "snapshot_hash": "5fc6736d9d5ca1864197ac310a14e3ff9e31236b542437d88ee27360f1297ed4",
+      "effective_from": "2026-03-10",
+      "effective_to": null,
+      "jurisdiction": "global",
+      "quote_policy": "summary_only",
+      "publisher_domain": "sapinsider.org"
     },
     {
       "source_id": "SRC_HYNDMAN_ACCURACY",
@@ -93,8 +142,15 @@
       "claims_supported": [
         "MAPE and accuracy metrics rationale"
       ],
-      "last_verified_date": "2026-02-16",
-      "verification_method": "script"
+      "last_verified_date": "2026-03-10",
+      "verification_method": "script",
+      "snapshot_path": "docs/source_snapshots/SRC_HYNDMAN_ACCURACY/2026-03-10.html",
+      "snapshot_hash": "d2ec2d27c0e2356616cd5d31185f76f79ddf4b2cf48abcfcd567fbf026319b67",
+      "effective_from": "2026-03-10",
+      "effective_to": null,
+      "jurisdiction": "global",
+      "quote_policy": "summary_only",
+      "publisher_domain": "robjhyndman.com"
     }
   ]
 }

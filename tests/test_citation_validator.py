@@ -5,6 +5,7 @@ from __future__ import annotations
 import unittest
 
 from models.schemas import EvidenceItem
+from services.domain.claim_extractor import ReportClaim
 from services.domain.citation_validator import validate_citation_coverage
 
 
@@ -49,6 +50,30 @@ class CitationValidatorTests(unittest.TestCase):
         )
         self.assertEqual(metrics.coverage_ratio, 1.0)
         self.assertFalse(any(issue.severity == "HIGH" for issue in issues))
+
+    def test_low_issue_when_report_claims_exceed_evidence_claims(self) -> None:
+        report_claims = [
+            ReportClaim(
+                section="executive_summary",
+                line_no=1,
+                claim_type="numeric",
+                text="Clean Core 점수 42.6/100",
+            ),
+            ReportClaim(
+                section="detailed_report",
+                line_no=2,
+                claim_type="statement",
+                text="- 권고안 1",
+            ),
+        ]
+        issues, metrics = validate_citation_coverage(
+            [_item("CLAIM_01", refs=["SRC_1"])],
+            report_claims,
+            strict_reference_ids=True,
+        )
+        self.assertEqual(metrics.total_report_claims, 2)
+        self.assertEqual(metrics.uncovered_report_claims, 1)
+        self.assertTrue(any(issue.code == "CITATION_REPORT_CLAIMS_UNCOVERED" for issue in issues))
 
 
 if __name__ == "__main__":

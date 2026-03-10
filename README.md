@@ -122,6 +122,7 @@ LLM 결과 품질을 안정화하기 위해 아래 보호 장치를 사용합니
 ### 4) Source Governance
 - `docs/sources.yaml` 기반 출처 카탈로그 검증
 - 스키마/노후도(staleness) 자동 체크
+- 스냅샷 파일 경로/sha256 해시 무결성 자동 체크
 
 ### 5) Document Outputs
 - Executive Summary / Detailed Report 생성
@@ -143,6 +144,7 @@ services/
   infrastructure/                  # llm/rag/pdf adapters
 tests/                             # unit tests
 tools/verify_sources.py            # source catalog validator
+tools/snapshot_sources.py          # source snapshot/hash refresh
 docs/                              # templates, playbooks, appendices
 ```
 
@@ -205,14 +207,21 @@ uv run streamlit run app.py
 make test
 make verify-sources
 make verify-report-preconfirm
+make qa-report
 ```
 
 - `make test`: unit test 실행
 - `make verify-sources`: 출처 카탈로그 검증
 - `make verify-report-preconfirm`: 인용 커버리지 + 수치/날짜 정합성 사전검증
+- `make qa-report`: 테스트 + 출처 검증 + pre-confirm 전체 게이트
 - CI(`.github/workflows/ci.yml`)에서도 동일한 pre-confirm 검증을 필수 게이트로 실행
 
-로컬 검증 스냅샷(2026-03-09):
+출처 스냅샷 갱신:
+```bash
+./.venv/bin/python tools/snapshot_sources.py --offline --update-catalog --json
+```
+
+로컬 검증 스냅샷(2026-03-10):
 - `make test` → 42 tests, all pass
 - `make verify-sources` → `[]`
 - `make verify-report-preconfirm` → PASS
