@@ -277,6 +277,7 @@ make qa-report
 - Engineering appendix: `docs/engineering/ARCHITECTURE_APPENDIX.md`
 - Compatibility contracts: `docs/engineering/COMPATIBILITY_CONTRACTS.md`
   - safe-lane deprecate/telemetry 정책 및 제거 목표일(`2026-06-30`) 포함
+- Release notes (2026-03-10): `docs/engineering/RELEASE_NOTES_2026-03-10.md`
 - EA cookbook templates: `docs/ea-cookbook/*`
 - Workshop kit: `docs/workshop-kit/*`
 - Joule playbook: `docs/joule-playbook/*`
