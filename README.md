@@ -153,6 +153,7 @@ tests/                             # unit tests
 tools/verify_sources.py            # source catalog validator
 tools/snapshot_sources.py          # source snapshot/hash refresh
 scripts/check_import_cycles.py     # internal import cycle checker
+scripts/verify_prune_hygiene.py    # fast-lane prune hygiene gate
 docs/                              # templates, playbooks, appendices
 ```
 
@@ -217,6 +218,7 @@ make test-compat
 make check-import-cycles
 make verify-sources
 make verify-report-preconfirm
+make verify-prune-hygiene
 make qa-report
 ```
 
@@ -225,7 +227,8 @@ make qa-report
 - `make check-import-cycles`: `services`/`app.py` 내부 import cycle 점검
 - `make verify-sources`: 출처 카탈로그 검증
 - `make verify-report-preconfirm`: 인용 커버리지 + 수치/날짜 정합성 사전검증
-- `make qa-report`: 테스트 + 출처 검증 + pre-confirm 전체 게이트
+- `make verify-prune-hygiene`: fast-lane 삭제 대상/deprecated target(backtest/calibrate) 재유입 방지
+- `make qa-report`: 테스트 + 출처 검증 + pre-confirm + prune hygiene 전체 게이트
 - CI(`.github/workflows/ci.yml`)에서도 `make qa-report` + `make test-compat`를 필수 게이트로 실행
 
 출처 스냅샷 갱신:
@@ -239,6 +242,7 @@ make qa-report
 - `make check-import-cycles` → No internal import cycles detected
 - `make verify-sources` → `[]`
 - `make verify-report-preconfirm` → PASS
+- `make verify-prune-hygiene` → `[]`
 - Refactor KPI snapshot: `analysis_runner.py` 439 lines / `app.py` 196 lines
 - Microbench(모킹 LLM, 150회): timeout=0 경로 p95 `0.139ms`, timeout=1000 경로 p95 `0.198ms`
 

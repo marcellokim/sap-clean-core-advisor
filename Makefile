@@ -1,7 +1,7 @@
 PYTHON ?= ./.venv/bin/python
 INDUSTRY ?= manufacturing
 
-.PHONY: run test test-compat check-import-cycles verify-sources verify-citations verify-report-consistency verify-report-preconfirm qa-report
+.PHONY: run test test-compat check-import-cycles verify-sources verify-citations verify-report-consistency verify-report-preconfirm verify-prune-hygiene qa-report
 
 run:
 	uv run streamlit run app.py
@@ -27,5 +27,8 @@ verify-report-consistency:
 verify-report-preconfirm: verify-citations verify-report-consistency
 	@echo "[ok] pre-confirm verification suite completed."
 
-qa-report: test verify-sources verify-report-preconfirm
+verify-prune-hygiene:
+	$(PYTHON) scripts/verify_prune_hygiene.py
+
+qa-report: test verify-sources verify-report-preconfirm verify-prune-hygiene
 	@echo "[ok] report qa gate completed."
