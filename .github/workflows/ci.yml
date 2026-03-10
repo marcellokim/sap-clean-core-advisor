@@ -28,5 +28,5 @@ jobs:
       - name: Run report QA gate
         run: make qa-report
 
-      - name: Run compatibility contract gate
-        run: make test-compat
+      - name: Run safe-lane promotion gate
+        run: make verify-safe-lane-promotion

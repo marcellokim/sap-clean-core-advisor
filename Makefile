@@ -7,10 +7,10 @@ run:
 	uv run streamlit run app.py
 
 test:
-	COMPAT_TELEMETRY_ENABLE=false $(PYTHON) -m unittest discover -s tests -v
+	COMPAT_TELEMETRY_ENABLE=false COMPAT_DEPRECATION_WARN=false $(PYTHON) -m unittest discover -s tests -v
 
 test-compat:
-	COMPAT_TELEMETRY_ENABLE=false $(PYTHON) -m unittest discover -s tests -p "test_compat_contracts.py" -v
+	COMPAT_TELEMETRY_ENABLE=false COMPAT_DEPRECATION_WARN=false $(PYTHON) -m unittest discover -s tests -p "test_compat_contracts.py" -v
 
 check-import-cycles:
 	python3 scripts/check_import_cycles.py services app.py
@@ -19,10 +19,10 @@ verify-sources:
 	$(PYTHON) tools/verify_sources.py --skip-http --json
 
 verify-citations:
-	COMPAT_TELEMETRY_ENABLE=false $(PYTHON) tools/verify_citations.py --json
+	COMPAT_TELEMETRY_ENABLE=false COMPAT_DEPRECATION_WARN=false $(PYTHON) tools/verify_citations.py --json
 
 verify-report-consistency:
-	COMPAT_TELEMETRY_ENABLE=false $(PYTHON) tools/verify_report_consistency.py --json
+	COMPAT_TELEMETRY_ENABLE=false COMPAT_DEPRECATION_WARN=false $(PYTHON) tools/verify_report_consistency.py --json
 
 verify-report-preconfirm: verify-citations verify-report-consistency
 	@echo "[ok] pre-confirm verification suite completed."

@@ -239,7 +239,10 @@ make qa-report
 - `make report-compat-telemetry`: 최근 7일 safe-lane 호환 래퍼 호출량 JSON 요약
 - `make verify-safe-lane-promotion`: 7일 호출량 0건 + prune hygiene + compat contract 통합 검증
 - `make qa-report`: 테스트 + 출처 검증 + pre-confirm + prune hygiene 전체 게이트
-- CI(`.github/workflows/ci.yml`)에서도 `make qa-report` + `make test-compat`를 필수 게이트로 실행
+- CI(`.github/workflows/ci.yml`)에서도 `make qa-report` + `make verify-safe-lane-promotion`를 필수 게이트로 실행
+
+테스트/검증 커맨드는 synthetic 호출로 telemetry가 오염되지 않도록 기본적으로
+`COMPAT_TELEMETRY_ENABLE=false` 및 `COMPAT_DEPRECATION_WARN=false`로 실행됩니다.
 
 출처 스냅샷 갱신:
 ```bash
