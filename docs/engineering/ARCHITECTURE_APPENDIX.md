@@ -59,7 +59,7 @@ Input Form
 3. base
 
 보정(calibration)/백테스트 도구는 현재 브랜치에서 제거되었고,
-운영 검증은 `make test`, `make verify-sources`를 기준으로 수행합니다.
+운영 검증은 `make qa-report`, `make test-compat`를 기준으로 수행합니다.
 
 ## 5. Evidence Ledger
 
@@ -130,5 +130,7 @@ SOURCE_VERIFY_MAX_AGE_DAYS=90
 
 ```bash
 make test
+make test-compat
 make verify-sources
+make qa-report
 ```

@@ -2,6 +2,7 @@
 
 ## Automated Gate (must pass before handoff)
 - [ ] `make qa-report` passed (test + source + pre-confirm)
+- [ ] `make test-compat` passed (compatibility wrappers unchanged)
 - [ ] `make verify-sources` result is empty (`[]`)
 - [ ] `make verify-citations` has no HIGH issues
 - [ ] `make verify-report-consistency` has no HIGH issues

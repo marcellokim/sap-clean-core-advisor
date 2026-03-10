@@ -205,16 +205,18 @@ uv run streamlit run app.py
 
 ```bash
 make test
+make test-compat
 make verify-sources
 make verify-report-preconfirm
 make qa-report
 ```
 
-- `make test`: unit test 실행
+- `make test`: 전체 unit test 실행
+- `make test-compat`: `analysis_service` / `fpdf_renderer` / `chroma_provider` 호환성 계약 테스트 실행
 - `make verify-sources`: 출처 카탈로그 검증
 - `make verify-report-preconfirm`: 인용 커버리지 + 수치/날짜 정합성 사전검증
 - `make qa-report`: 테스트 + 출처 검증 + pre-confirm 전체 게이트
-- CI(`.github/workflows/ci.yml`)에서도 동일한 pre-confirm 검증을 필수 게이트로 실행
+- CI(`.github/workflows/ci.yml`)에서도 `make qa-report` + `make test-compat`를 필수 게이트로 실행
 
 출처 스냅샷 갱신:
 ```bash
@@ -236,6 +238,7 @@ make qa-report
 ## 11) Docs & Assets
 
 - Engineering appendix: `docs/engineering/ARCHITECTURE_APPENDIX.md`
+- Compatibility contracts: `docs/engineering/COMPATIBILITY_CONTRACTS.md`
 - EA cookbook templates: `docs/ea-cookbook/*`
 - Workshop kit: `docs/workshop-kit/*`
 - Joule playbook: `docs/joule-playbook/*`

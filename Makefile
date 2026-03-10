@@ -1,13 +1,16 @@
 PYTHON ?= ./.venv/bin/python
 INDUSTRY ?= manufacturing
 
-.PHONY: run test verify-sources verify-citations verify-report-consistency verify-report-preconfirm qa-report backtest calibrate
+.PHONY: run test test-compat verify-sources verify-citations verify-report-consistency verify-report-preconfirm qa-report
 
 run:
 	uv run streamlit run app.py
 
 test:
 	$(PYTHON) -m unittest discover -s tests -v
+
+test-compat:
+	$(PYTHON) -m unittest discover -s tests -p "test_compat_contracts.py" -v
 
 verify-sources:
 	$(PYTHON) tools/verify_sources.py --skip-http --json
@@ -23,11 +26,3 @@ verify-report-preconfirm: verify-citations verify-report-consistency
 
 qa-report: test verify-sources verify-report-preconfirm
 	@echo "[ok] report qa gate completed."
-
-backtest:
-	@echo "[deprecated] backtest workflow has been removed in this branch."
-	@echo "Use: make qa-report"
-
-calibrate:
-	@echo "[deprecated] calibrate workflow has been removed in this branch."
-	@echo "Use: make qa-report"
