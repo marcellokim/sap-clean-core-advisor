@@ -59,7 +59,7 @@ Input Form
 3. base
 
 보정(calibration)/백테스트 도구는 현재 브랜치에서 제거되었고,
-운영 검증은 `make qa-report`, `make test-compat`를 기준으로 수행합니다.
+운영 검증은 `make qa-report`, `make verify-safe-lane-promotion`, `make verify-release-readiness`를 기준으로 수행합니다.
 
 ## 5. Evidence Ledger
 
@@ -124,6 +124,13 @@ CALIBRATION_WEIGHT_RISK=0.3
 
 # Sources
 SOURCE_VERIFY_MAX_AGE_DAYS=90
+
+# Safe-lane compatibility wrappers
+COMPAT_TELEMETRY_ENABLE=true
+COMPAT_TELEMETRY_LOG_PATH=artifacts/telemetry/compat_usage.jsonl
+COMPAT_TELEMETRY_INCLUDE_TESTS=false
+COMPAT_DEPRECATION_WARN=true
+COMPAT_DEPRECATION_REMOVE_AFTER=2026-06-30
 ```
 
 ## 7. Engineering Validation Commands
@@ -132,5 +139,9 @@ SOURCE_VERIFY_MAX_AGE_DAYS=90
 make test
 make test-compat
 make verify-sources
+make verify-prune-hygiene
+make report-compat-telemetry
+make verify-safe-lane-promotion
+make verify-release-readiness
 make qa-report
 ```

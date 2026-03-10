@@ -1,7 +1,7 @@
 PYTHON ?= ./.venv/bin/python
 INDUSTRY ?= manufacturing
 
-.PHONY: run test test-compat check-import-cycles verify-sources verify-citations verify-report-consistency verify-report-preconfirm verify-prune-hygiene report-compat-telemetry verify-safe-lane-promotion qa-report
+.PHONY: run test test-compat check-import-cycles verify-sources verify-citations verify-report-consistency verify-report-preconfirm verify-prune-hygiene report-compat-telemetry verify-safe-lane-promotion verify-release-readiness qa-report
 
 run:
 	uv run streamlit run app.py
@@ -39,6 +39,9 @@ verify-safe-lane-promotion:
 	$(PYTHON) scripts/compat_telemetry_report.py --days 7 --json --fail-on-usage --require-log
 	$(PYTHON) scripts/verify_prune_hygiene.py
 	$(MAKE) test-compat
+
+verify-release-readiness:
+	$(PYTHON) scripts/verify_release_readiness.py --qa-runs 3 --output artifacts/qa/release_readiness.json --json
 
 qa-report: test verify-sources verify-report-preconfirm verify-prune-hygiene
 	@echo "[ok] report qa gate completed."

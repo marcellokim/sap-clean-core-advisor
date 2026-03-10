@@ -3,6 +3,8 @@
 ## Automated Gate (must pass before handoff)
 - [ ] `make qa-report` passed (test + source + pre-confirm)
 - [ ] `make test-compat` passed (compatibility wrappers unchanged)
+- [ ] `make verify-safe-lane-promotion` passed (7-day compat telemetry 0 + prune hygiene + compat contracts)
+- [ ] `make verify-release-readiness` passed (최종 `make qa-report` 3회 연속 포함)
 - [ ] `make verify-sources` result is empty (`[]`)
 - [ ] `make verify-citations` has no HIGH issues
 - [ ] `make verify-report-consistency` has no HIGH issues

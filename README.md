@@ -155,6 +155,7 @@ tools/snapshot_sources.py          # source snapshot/hash refresh
 scripts/check_import_cycles.py     # internal import cycle checker
 scripts/verify_prune_hygiene.py    # fast-lane prune hygiene gate
 scripts/compat_telemetry_report.py # safe-lane telemetry summary/promotion checker
+scripts/verify_release_readiness.py # final readiness gate (qa-report x3 + promotion checks)
 docs/                              # templates, playbooks, appendices
 ```
 
@@ -227,6 +228,7 @@ make verify-report-preconfirm
 make verify-prune-hygiene
 make report-compat-telemetry
 make verify-safe-lane-promotion
+make verify-release-readiness
 make qa-report
 ```
 
@@ -238,6 +240,7 @@ make qa-report
 - `make verify-prune-hygiene`: fast-lane 삭제 대상/deprecated target(backtest/calibrate) 재유입 방지
 - `make report-compat-telemetry`: 최근 7일 safe-lane 호환 래퍼 호출량 JSON 요약
 - `make verify-safe-lane-promotion`: 7일 호출량 0건 + prune hygiene + compat contract 통합 검증
+- `make verify-release-readiness`: 최종 릴리즈 게이트(`make qa-report` 3회 연속 + `test-compat` + import cycle + safe-lane 승격 검증) 실행 및 리포트 저장(`artifacts/qa/release_readiness.json`)
 - `make qa-report`: 테스트 + 출처 검증 + pre-confirm + prune hygiene 전체 게이트
 - CI(`.github/workflows/ci.yml`)에서도 `make qa-report` + `make verify-safe-lane-promotion`를 필수 게이트로 실행
 
@@ -258,6 +261,7 @@ make qa-report
 - `make verify-prune-hygiene` → `[]`
 - `make report-compat-telemetry` → `{ total_events_in_window: 0, promotion_ready: true }`
 - `make verify-safe-lane-promotion` → PASS
+- `make verify-release-readiness` → PASS (`artifacts/qa/release_readiness.json` 생성)
 - Refactor KPI snapshot: `analysis_runner.py` 439 lines / `app.py` 196 lines
 - Microbench(모킹 LLM, 150회): timeout=0 경로 p95 `0.139ms`, timeout=1000 경로 p95 `0.198ms`
 
