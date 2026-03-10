@@ -161,6 +161,16 @@ cp .env.example .env
 # 필요 시 API key 입력
 ```
 
+`uv`가 없으면:
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install -U pip
+python -m pip install -e .
+cp .env.example .env
+```
+
 ### Run
 ```bash
 make run
@@ -180,6 +190,8 @@ uv run streamlit run app.py
 - `LLM_DISABLE`: LLM 단계 비활성화
 - `RAG_ENABLE`: RAG 단계 활성화
 - `SOURCE_VERIFY_MAX_AGE_DAYS`: 출처 최신성 기준
+- `REPORT_PREFLIGHT_ENABLE`: 보고서 사전 검증 활성화
+- `REPORT_PREFLIGHT_BLOCK_ON_HIGH`: HIGH 이슈 시 PDF 생성 차단
 
 운영/데모 권장 프로파일:
 - **안정성 우선**: `ANALYSIS_MODE=hybrid`, `RAG_ENABLE=true`, `LLM_DISABLE=false`
@@ -192,14 +204,18 @@ uv run streamlit run app.py
 ```bash
 make test
 make verify-sources
+make verify-report-preconfirm
 ```
 
 - `make test`: unit test 실행
 - `make verify-sources`: 출처 카탈로그 검증
+- `make verify-report-preconfirm`: 인용 커버리지 + 수치/날짜 정합성 사전검증
+- CI(`.github/workflows/ci.yml`)에서도 동일한 pre-confirm 검증을 필수 게이트로 실행
 
 로컬 검증 스냅샷(2026-03-09):
-- `make test` → 34 tests, all pass
+- `make test` → 42 tests, all pass
 - `make verify-sources` → `[]`
+- `make verify-report-preconfirm` → PASS
 
 예시(결정론 샘플 케이스 기준 기대값):
 - Clean Core Score: `42.6`

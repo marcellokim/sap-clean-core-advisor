@@ -30,3 +30,8 @@ jobs:
 
       - name: Verify source catalog
         run: uv run python tools/verify_sources.py --skip-http --json
+
+      - name: Verify report pre-confirm gates
+        run: |
+          uv run python tools/verify_citations.py --json
+          uv run python tools/verify_report_consistency.py --json

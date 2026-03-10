@@ -56,6 +56,10 @@ class Settings(BaseSettings):
     # Sources
     SOURCE_VERIFY_MAX_AGE_DAYS: int = 90
 
+    # Report pre-confirm validation
+    REPORT_PREFLIGHT_ENABLE: bool = True
+    REPORT_PREFLIGHT_BLOCK_ON_HIGH: bool = True
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",

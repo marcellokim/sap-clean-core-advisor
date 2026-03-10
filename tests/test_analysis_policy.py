@@ -7,6 +7,7 @@ import unittest
 from unittest.mock import patch
 
 from models.schemas import CustomerInput, ModuleInfo
+from models.schemas import EvidenceItem
 from services.application.analysis_runner import AnalysisPolicy, run_analysis
 from services.llm_provider import ReportSections
 from services.rag_pipeline import RAGContextBundle
@@ -68,6 +69,60 @@ class AnalysisPolicyTests(unittest.TestCase):
             "LLM_DETAIL_TEMPLATE_ENFORCED",
             " ".join(result.output.validation_warnings),
         )
+
+    @patch("services.application.analysis_runner.FPDFRenderer.render", return_value=b"%PDF-test")
+    @patch("services.application.analysis_runner.GeminiLLMProvider.__init__", return_value=None)
+    @patch(
+        "services.application.analysis_runner.GeminiLLMProvider.generate_report",
+        return_value=ReportSections(executive_summary="LLM EXEC", detailed_report="LLM DETAIL"),
+    )
+    @patch("services.application.analysis_runner.ChromaRAGProvider.__init__", return_value=None)
+    @patch(
+        "services.application.analysis_runner.ChromaRAGProvider.get_context_bundle",
+        return_value=RAGContextBundle(context="[출처: x]\nctx", sources=["x"], chunk_count=1),
+    )
+    @patch(
+        "services.application.analysis_runner.build_evidence_ledger",
+        return_value=[
+            EvidenceItem(
+                claim_id="CLAIM_01",
+                claim_text="테스트 claim",
+                evidence_grade="A",
+                input_facts=["fact"],
+                rule_ids=["REC_SCORE_LT_60"],
+                rag_sources=["x"],
+                reference_source_ids=[],
+                generation_mode="llm",
+            )
+        ],
+    )
+    def test_preconfirm_high_issue_blocks_pdf_generation(
+        self,
+        _mock_ledger: object,
+        _mock_rag: object,
+        _mock_rag_init: object,
+        _mock_llm: object,
+        _mock_llm_init: object,
+        mock_pdf: object,
+    ) -> None:
+        with patch.multiple(
+            "config.settings.settings",
+            REPORT_PREFLIGHT_ENABLE=True,
+            REPORT_PREFLIGHT_BLOCK_ON_HIGH=True,
+        ):
+            result = run_analysis(
+                _sample_input(),
+                policy=AnalysisPolicy(analysis_mode="hybrid", rag_enabled=True, llm_enabled=True),
+            )
+        self.assertEqual(result.output.pdf_status, "failed")
+        self.assertEqual(result.pdf_error_code, "ERR_REPORT_VALIDATION")
+        self.assertTrue(
+            any(
+                "REPORT_PRECONFIRM_HIGH_CITATION_MISSING_REFERENCE_SOURCE_IDS" in warning
+                for warning in result.output.validation_warnings
+            )
+        )
+        mock_pdf.assert_not_called()
 
     @patch("services.application.analysis_runner.FPDFRenderer.render", return_value=b"%PDF-test")
     @patch("services.application.analysis_runner.GeminiLLMProvider.generate_report")
