@@ -138,13 +138,16 @@ app.py                             # Streamlit entrypoint
 config/                            # settings, rulesets
 models/                            # pydantic schemas
 services/
-  application/analysis_runner.py   # orchestration policy
+  application/analysis_runner.py   # orchestration policy (slim)
+  application/report_content.py    # report payload/fallback/quality helpers
+  application/report_preflight.py  # pre-confirm + PDF gate helpers
   cost_calculator.py               # KPI calculations
   domain/                          # recommendation/evidence/validation
   infrastructure/                  # llm/rag/pdf adapters
 tests/                             # unit tests
 tools/verify_sources.py            # source catalog validator
 tools/snapshot_sources.py          # source snapshot/hash refresh
+scripts/check_import_cycles.py     # internal import cycle checker
 docs/                              # templates, playbooks, appendices
 ```
 
@@ -226,7 +229,9 @@ make qa-report
 ```
 
 로컬 검증 스냅샷(2026-03-10):
-- `make test` → 42 tests, all pass
+- `make test` → 50 tests, all pass
+- `make test-compat` → 7 tests, all pass
+- `make check-import-cycles` → No internal import cycles detected
 - `make verify-sources` → `[]`
 - `make verify-report-preconfirm` → PASS
 
