@@ -5,7 +5,6 @@ from __future__ import annotations
 import json
 import logging
 import time
-import concurrent.futures
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
@@ -19,6 +18,7 @@ from services.application.llm_costs import (
     monthly_llm_projection_usd,
     usage_tokens_map,
 )
+from services.application.llm_runtime import generate_with_optional_timeout
 from services.application.report_content import (
     build_fallback_reports,
     build_report_payload,
@@ -238,16 +238,11 @@ def run_analysis(
             generation_provider = provider.provider_name
             max_quality_retry = 1
             for quality_attempt in range(max_quality_retry + 1):
-                executor = concurrent.futures.ThreadPoolExecutor(max_workers=1)
-                future = executor.submit(provider.generate_report, payload)
-                try:
-                    remaining_timeout = _remaining_timeout_sec(total_start, effective_policy.timeout_ms)
-                    if remaining_timeout is None:
-                        candidate_sections = future.result()
-                    else:
-                        candidate_sections = future.result(timeout=remaining_timeout)
-                finally:
-                    executor.shutdown(wait=False, cancel_futures=True)
+                candidate_sections = generate_with_optional_timeout(
+                    provider,
+                    payload,
+                    lambda: _remaining_timeout_sec(total_start, effective_policy.timeout_ms),
+                )
 
                 issues = collect_report_quality_issues(
                     candidate_sections,
@@ -308,7 +303,7 @@ def run_analysis(
                 generation_error_code = None
                 llm_status = "ok"
                 break
-        except concurrent.futures.TimeoutError:
+        except TimeoutError:
             generation_mode = "fallback"
             generation_error_code = ERR_LLM_PROVIDER
             llm_status = "fallback"

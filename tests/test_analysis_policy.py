@@ -185,6 +185,35 @@ class AnalysisPolicyTests(unittest.TestCase):
         mock_rag.assert_called_once()
         mock_llm.assert_called_once()
 
+    @patch("services.application.llm_runtime.concurrent.futures.ThreadPoolExecutor")
+    @patch("services.application.analysis_runner.FPDFRenderer.render", return_value=b"%PDF-test")
+    @patch("services.application.analysis_runner.GeminiLLMProvider.__init__", return_value=None)
+    @patch(
+        "services.application.analysis_runner.GeminiLLMProvider.generate_report",
+        return_value=ReportSections(executive_summary="LLM EXEC", detailed_report="LLM DETAIL"),
+    )
+    @patch("services.application.analysis_runner.ChromaRAGProvider.__init__", return_value=None)
+    @patch(
+        "services.application.analysis_runner.ChromaRAGProvider.get_context_bundle",
+        return_value=RAGContextBundle(context="[출처: x]\nctx", sources=["x"], chunk_count=1),
+    )
+    def test_hybrid_mode_without_timeout_does_not_use_threadpool(
+        self,
+        _mock_rag: object,
+        _mock_rag_init: object,
+        _mock_llm: object,
+        _mock_llm_init: object,
+        _mock_pdf: object,
+        mock_executor: object,
+    ) -> None:
+        result = run_analysis(
+            _sample_input(),
+            policy=AnalysisPolicy(analysis_mode="hybrid", rag_enabled=True, llm_enabled=True, timeout_ms=0),
+        )
+        self.assertEqual(result.output.generation_mode, "llm")
+        self.assertEqual(result.output.llm_status, "ok")
+        mock_executor.assert_not_called()
+
     @patch("services.application.analysis_runner.FPDFRenderer.render", return_value=b"%PDF-test")
     @patch(
         "services.application.analysis_runner.GLMLLMProvider.generate_report",

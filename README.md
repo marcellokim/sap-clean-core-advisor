@@ -100,6 +100,8 @@ LLM 결과 품질을 안정화하기 위해 아래 보호 장치를 사용합니
    - `LLM_DETAIL_TEMPLATE_ENFORCED` 경고로 명시
 4. **LLM 사용량·비용 추적**
    - provider usage 기반 토큰/비용 집계(`llm_usage_source=provider`)
+5. **타임아웃 비활성 경로 최적화**
+   - `ANALYSIS_TIMEOUT_MS=0`일 때 LLM 호출을 직접 실행해 불필요한 thread 생성 오버헤드 제거
 
 ---
 
@@ -140,6 +142,7 @@ models/                            # pydantic schemas
 services/
   application/analysis_runner.py   # orchestration policy (slim)
   application/llm_costs.py         # provider usage token/cost helpers
+  application/llm_runtime.py       # optional-timeout LLM execution helper
   application/report_content.py    # report payload/fallback/quality helpers
   application/report_preflight.py  # pre-confirm + PDF gate helpers
   cost_calculator.py               # KPI calculations
@@ -231,12 +234,13 @@ make qa-report
 ```
 
 로컬 검증 스냅샷(2026-03-10):
-- `make test` → 50 tests, all pass
+- `make test` → 51 tests, all pass
 - `make test-compat` → 7 tests, all pass
 - `make check-import-cycles` → No internal import cycles detected
 - `make verify-sources` → `[]`
 - `make verify-report-preconfirm` → PASS
-- Refactor KPI snapshot: `analysis_runner.py` 444 lines / `app.py` 196 lines
+- Refactor KPI snapshot: `analysis_runner.py` 439 lines / `app.py` 196 lines
+- Microbench(모킹 LLM, 150회): timeout=0 경로 p95 `0.139ms`, timeout=1000 경로 p95 `0.198ms`
 
 예시(결정론 샘플 케이스 기준 기대값):
 - Clean Core Score: `42.6`
