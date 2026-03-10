@@ -1,7 +1,7 @@
 PYTHON ?= ./.venv/bin/python
 INDUSTRY ?= manufacturing
 
-.PHONY: run test test-compat check-import-cycles verify-sources verify-citations verify-report-consistency verify-report-preconfirm verify-prune-hygiene report-compat-telemetry verify-safe-lane-promotion verify-release-readiness qa-report
+.PHONY: run test test-compat check-import-cycles verify-sources verify-citations verify-report-consistency verify-report-preconfirm verify-prune-hygiene report-compat-telemetry verify-safe-lane-promotion verify-safe-lane-promotion-strict verify-release-readiness qa-report
 
 run:
 	uv run streamlit run app.py
@@ -34,11 +34,24 @@ report-compat-telemetry:
 	$(PYTHON) scripts/compat_telemetry_report.py --days 7 --json
 
 verify-safe-lane-promotion:
-	mkdir -p artifacts/telemetry
-	touch artifacts/telemetry/compat_usage.jsonl
-	$(PYTHON) scripts/compat_telemetry_report.py --days 7 --json --fail-on-usage --require-log
+	@if [ -f artifacts/telemetry/compat_usage.jsonl ] && [ ! -s artifacts/telemetry/compat_usage.jsonl ]; then \
+		echo "[fail] compat telemetry log exists but is empty: artifacts/telemetry/compat_usage.jsonl"; \
+		echo "[hint] remove placeholder log and collect real telemetry before promotion."; \
+		exit 2; \
+	fi
+	$(PYTHON) scripts/compat_telemetry_report.py --days 7 --json --fail-on-usage
 	$(PYTHON) scripts/verify_prune_hygiene.py
 	$(MAKE) test-compat
+
+verify-safe-lane-promotion-strict:
+	@mkdir -p artifacts/telemetry
+	@if [ ! -f artifacts/telemetry/compat_usage.jsonl ]; then \
+		echo "[fail] compat telemetry log is missing: artifacts/telemetry/compat_usage.jsonl"; \
+		echo "[hint] enable runtime telemetry and collect at least one non-placeholder log before strict promotion."; \
+		exit 2; \
+	fi
+	$(MAKE) verify-safe-lane-promotion
+	$(PYTHON) scripts/compat_telemetry_report.py --days 7 --json --fail-on-usage --require-log
 
 verify-release-readiness:
 	$(PYTHON) scripts/verify_release_readiness.py --qa-runs 3 --output artifacts/qa/release_readiness.json --json
