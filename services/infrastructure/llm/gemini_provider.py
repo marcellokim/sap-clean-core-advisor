@@ -3,20 +3,23 @@
 from __future__ import annotations
 
 import logging
-from typing import Any
+from typing import Any, TypeVar
 
 from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.runnables import Runnable
+from pydantic import BaseModel
 
 from config.settings import settings
-from services.llm_provider import LLMUsage, ReportPayload, ReportSections
+from services.llm_provider import LLMProviderError, LLMUsage, ReportPayload, ReportSections
 from services.infrastructure.llm.base_provider import BaseLLMProvider
 
 logger = logging.getLogger(__name__)
 
 DEFAULT_MODEL = "gemini-2.5-flash"
 DEFAULT_PIPELINE_MODE = "single"
+StructuredModelT = TypeVar("StructuredModelT", bound=BaseModel)
 
 ANALYST_SYSTEM = """\
 너는 20년차 SAP Enterprise Architect이다.
@@ -219,6 +222,17 @@ def _build_usage(response: Any, text: str) -> LLMUsage:
     return LLMUsage()
 
 
+def _as_provider_error(exc: Exception) -> LLMProviderError:
+    from services.error_codes import ERR_LLM_AUTH, ERR_LLM_PROVIDER, ERR_LLM_RATE_LIMIT
+
+    err_str = str(exc).upper()
+    if "429" in err_str or "RESOURCE_EXHAUSTED" in err_str or "TOOMANYREQUESTS" in err_str or "QUOTA EXCEEDED" in err_str:
+        return LLMProviderError(ERR_LLM_RATE_LIMIT, str(exc))
+    if "401" in err_str or "403" in err_str or "PERMISSION_DENIED" in err_str or "API KEY" in err_str:
+        return LLMProviderError(ERR_LLM_AUTH, str(exc))
+    return LLMProviderError(ERR_LLM_PROVIDER, str(exc))
+
+
 def _merge_usage(usages: list[LLMUsage]) -> LLMUsage:
     prompt_tokens = sum(max(0, int(u.prompt_tokens)) for u in usages)
     output_tokens = sum(max(0, int(u.output_tokens)) for u in usages)
@@ -260,27 +274,30 @@ class GeminiLLMProvider(BaseLLMProvider):
         )
 
     def _invoke_text_with_usage(self, chain: Runnable, inputs: dict[str, Any]) -> tuple[str, LLMUsage]:
-        # Using base class retry semantics inside chain invoke happens automatically if standard errors are raised?
-        # Actually Google API clients raise their own errors, but BaseLLMProvider expects LLMProviderError.
-        # So we should wrap standard execute in try-except that raises LLMProviderError, and base will catch it.
-        # But wait, BaseLLMProvider wraps `_invoke_generate`, not chain.invoke.
-        # So the wrapper around chain.invoke needs to catch google errors and raise LLMProviderError!
-        from services.error_codes import ERR_LLM_AUTH, ERR_LLM_PROVIDER, ERR_LLM_RATE_LIMIT
-        from services.llm_provider import LLMProviderError
-        
         try:
             response = chain.invoke(inputs)
         except Exception as e:
-            err_str = str(e).upper()
-            if "429" in err_str or "RESOURCE_EXHAUSTED" in err_str or "TOOMANYREQUESTS" in err_str or "QUOTA EXCEEDED" in err_str:
-                raise LLMProviderError(ERR_LLM_RATE_LIMIT, str(e))
-            elif "401" in err_str or "403" in err_str or "PERMISSION_DENIED" in err_str or "API KEY" in err_str:
-                raise LLMProviderError(ERR_LLM_AUTH, str(e))
-            else:
-                raise LLMProviderError(ERR_LLM_PROVIDER, str(e))
+            raise _as_provider_error(e)
 
         text = self._extract_text(getattr(response, "content", response))
         return (text, _build_usage(response, text))
+
+    def generate_structured_output(
+        self,
+        *,
+        system_prompt: str,
+        user_prompt: str,
+        output_model: type[StructuredModelT],
+    ) -> StructuredModelT:
+        llm = self._llm.with_structured_output(output_model)
+        messages = [
+            SystemMessage(content=system_prompt),
+            HumanMessage(content=user_prompt),
+        ]
+        try:
+            return llm.invoke(messages)
+        except Exception as e:
+            raise _as_provider_error(e)
 
     def _invoke_generate(self, payload: ReportPayload) -> ReportSections:
         if self._pipeline_mode == "three_chain":
