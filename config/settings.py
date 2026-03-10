@@ -62,6 +62,8 @@ class Settings(BaseSettings):
 
     # Safe-lane compatibility wrappers (deprecate + telemetry)
     COMPAT_TELEMETRY_ENABLE: bool = True
+    COMPAT_TELEMETRY_LOG_PATH: str = "artifacts/telemetry/compat_usage.jsonl"
+    COMPAT_TELEMETRY_INCLUDE_TESTS: bool = False
     COMPAT_DEPRECATION_WARN: bool = True
     COMPAT_DEPRECATION_REMOVE_AFTER: str = "2026-06-30"
 

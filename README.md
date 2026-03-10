@@ -147,13 +147,14 @@ services/
   application/report_preflight.py  # pre-confirm + PDF gate helpers
   cost_calculator.py               # KPI calculations
   domain/                          # recommendation/evidence/validation
-  infrastructure/                  # llm/rag/pdf adapters
+  infrastructure/                  # llm/rag/pdf adapters + compat telemetry
 ui/sidebar.py                      # sidebar/support-pack rendering
 tests/                             # unit tests
 tools/verify_sources.py            # source catalog validator
 tools/snapshot_sources.py          # source snapshot/hash refresh
 scripts/check_import_cycles.py     # internal import cycle checker
 scripts/verify_prune_hygiene.py    # fast-lane prune hygiene gate
+scripts/compat_telemetry_report.py # safe-lane telemetry summary/promotion checker
 docs/                              # templates, playbooks, appendices
 ```
 
@@ -204,6 +205,8 @@ uv run streamlit run app.py
 - `REPORT_PREFLIGHT_ENABLE`: 보고서 사전 검증 활성화
 - `REPORT_PREFLIGHT_BLOCK_ON_HIGH`: HIGH 이슈 시 PDF 생성 차단
 - `COMPAT_TELEMETRY_ENABLE`: safe-lane 호환 래퍼 사용 telemetry 로깅
+- `COMPAT_TELEMETRY_LOG_PATH`: compatibility telemetry JSONL 경로
+- `COMPAT_TELEMETRY_INCLUDE_TESTS`: 테스트 실행 시 telemetry 파일 기록 포함 여부(기본 false)
 - `COMPAT_DEPRECATION_WARN`: safe-lane 호환 래퍼 호출 시 deprecation warning
 - `COMPAT_DEPRECATION_REMOVE_AFTER`: 제거 목표 시점(기본 `2026-06-30`)
 
@@ -222,6 +225,8 @@ make check-import-cycles
 make verify-sources
 make verify-report-preconfirm
 make verify-prune-hygiene
+make report-compat-telemetry
+make verify-safe-lane-promotion
 make qa-report
 ```
 
@@ -231,6 +236,8 @@ make qa-report
 - `make verify-sources`: 출처 카탈로그 검증
 - `make verify-report-preconfirm`: 인용 커버리지 + 수치/날짜 정합성 사전검증
 - `make verify-prune-hygiene`: fast-lane 삭제 대상/deprecated target(backtest/calibrate) 재유입 방지
+- `make report-compat-telemetry`: 최근 7일 safe-lane 호환 래퍼 호출량 JSON 요약
+- `make verify-safe-lane-promotion`: 7일 호출량 0건 + prune hygiene + compat contract 통합 검증
 - `make qa-report`: 테스트 + 출처 검증 + pre-confirm + prune hygiene 전체 게이트
 - CI(`.github/workflows/ci.yml`)에서도 `make qa-report` + `make test-compat`를 필수 게이트로 실행
 
@@ -240,12 +247,14 @@ make qa-report
 ```
 
 로컬 검증 스냅샷(2026-03-10):
-- `make test` → 54 tests, all pass
+- `make test` → 59 tests, all pass
 - `make test-compat` → 10 tests, all pass
 - `make check-import-cycles` → No internal import cycles detected
 - `make verify-sources` → `[]`
 - `make verify-report-preconfirm` → PASS
 - `make verify-prune-hygiene` → `[]`
+- `make report-compat-telemetry` → `{ total_events_in_window: 0, promotion_ready: true }`
+- `make verify-safe-lane-promotion` → PASS
 - Refactor KPI snapshot: `analysis_runner.py` 439 lines / `app.py` 196 lines
 - Microbench(모킹 LLM, 150회): timeout=0 경로 p95 `0.139ms`, timeout=1000 경로 p95 `0.198ms`
 

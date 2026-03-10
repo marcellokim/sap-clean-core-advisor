@@ -8,6 +8,18 @@
 - 아래 호환 래퍼 3종은 **이번 사이클에서 물리 삭제하지 않고** safe-lane으로 유지합니다.
 - 호출 시 `compat_wrapper_used` telemetry 이벤트를 남기고 `DeprecationWarning` 경고를 발행합니다.
 - 목표 제거 시점: **2026-06-30 이후 다음 안정화 사이클**(telemetry 사용량이 0일 때).
+- telemetry 로그 기본 경로: `artifacts/telemetry/compat_usage.jsonl`
+- 테스트 실행 중에는 로그 오염 방지를 위해 telemetry 파일 기록을 기본 비활성화합니다(`COMPAT_TELEMETRY_INCLUDE_TESTS=false`).
+
+### Safe-lane 승격(삭제 후보 전환) 점검 명령
+
+```bash
+make report-compat-telemetry
+make verify-safe-lane-promotion
+```
+
+- `make report-compat-telemetry`: 최근 7일 래퍼 호출량 JSON 요약 출력
+- `make verify-safe-lane-promotion`: 7일 호출량 0건 + prune hygiene + `make test-compat` 통과 여부를 일괄 검증
 
 ## 1. `services.analysis_service`
 

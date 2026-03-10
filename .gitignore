@@ -23,6 +23,7 @@ calibration/reports/*.md
 calibration/reports/*.json
 config/rulesets/generated/*.yaml
 artifacts/analysis/*.json
+artifacts/telemetry/*.jsonl
 
 # OMX local state/logs
 .omx/
