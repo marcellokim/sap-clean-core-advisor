@@ -15,6 +15,7 @@ from services.domain.recommendation_engine import (
 from services.domain.validation_engine import (
     build_validation_warnings as _build_validation_warnings,
 )
+from services.infrastructure.compat_telemetry import mark_compat_usage
 
 
 import streamlit as st
@@ -40,6 +41,11 @@ def analyze_customer_input(customer_input, lang: str = "ko", policy: AnalysisPol
     import dataclasses
     import os
     from services.application.analysis_runner import AnalysisPolicy
+
+    mark_compat_usage(
+        contract="services.analysis_service.analyze_customer_input",
+        replacement="services.application.analysis_runner.run_analysis",
+    )
 
     effective_policy = policy or AnalysisPolicy.from_env()
 

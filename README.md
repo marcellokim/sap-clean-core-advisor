@@ -203,6 +203,9 @@ uv run streamlit run app.py
 - `SOURCE_VERIFY_MAX_AGE_DAYS`: 출처 최신성 기준
 - `REPORT_PREFLIGHT_ENABLE`: 보고서 사전 검증 활성화
 - `REPORT_PREFLIGHT_BLOCK_ON_HIGH`: HIGH 이슈 시 PDF 생성 차단
+- `COMPAT_TELEMETRY_ENABLE`: safe-lane 호환 래퍼 사용 telemetry 로깅
+- `COMPAT_DEPRECATION_WARN`: safe-lane 호환 래퍼 호출 시 deprecation warning
+- `COMPAT_DEPRECATION_REMOVE_AFTER`: 제거 목표 시점(기본 `2026-06-30`)
 
 운영/데모 권장 프로파일:
 - **안정성 우선**: `ANALYSIS_MODE=hybrid`, `RAG_ENABLE=true`, `LLM_DISABLE=false`
@@ -237,8 +240,8 @@ make qa-report
 ```
 
 로컬 검증 스냅샷(2026-03-10):
-- `make test` → 51 tests, all pass
-- `make test-compat` → 7 tests, all pass
+- `make test` → 54 tests, all pass
+- `make test-compat` → 10 tests, all pass
 - `make check-import-cycles` → No internal import cycles detected
 - `make verify-sources` → `[]`
 - `make verify-report-preconfirm` → PASS
@@ -257,6 +260,7 @@ make qa-report
 
 - Engineering appendix: `docs/engineering/ARCHITECTURE_APPENDIX.md`
 - Compatibility contracts: `docs/engineering/COMPATIBILITY_CONTRACTS.md`
+  - safe-lane deprecate/telemetry 정책 및 제거 목표일(`2026-06-30`) 포함
 - EA cookbook templates: `docs/ea-cookbook/*`
 - Workshop kit: `docs/workshop-kit/*`
 - Joule playbook: `docs/joule-playbook/*`

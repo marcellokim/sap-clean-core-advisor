@@ -113,6 +113,26 @@ class AnalysisServiceContractTests(unittest.TestCase):
         mock_from_env.assert_not_called()
         mock_run_analysis.assert_called_once_with(customer, policy=policy, lang="ko")
 
+    def test_analyze_customer_input_emits_compat_usage_telemetry(self) -> None:
+        customer = _sample_customer_input()
+        expected = _sample_analysis_result()
+        previous_disable_cache = os.environ.get("DISABLE_CACHE")
+        os.environ["DISABLE_CACHE"] = "1"
+        try:
+            with patch("services.analysis_service.mark_compat_usage") as mock_telemetry:
+                with patch("services.analysis_service.run_analysis", return_value=expected):
+                    analyze_customer_input(customer, lang="ko")
+        finally:
+            if previous_disable_cache is None:
+                os.environ.pop("DISABLE_CACHE", None)
+            else:
+                os.environ["DISABLE_CACHE"] = previous_disable_cache
+
+        mock_telemetry.assert_called_once_with(
+            contract="services.analysis_service.analyze_customer_input",
+            replacement="services.application.analysis_runner.run_analysis",
+        )
+
 
 class FPDFRendererContractTests(unittest.TestCase):
     def test_render_returns_generate_pdf_bytes_without_shape_changes(self) -> None:
@@ -134,6 +154,20 @@ class FPDFRendererContractTests(unittest.TestCase):
         with patch("services.infrastructure.pdf.fpdf_renderer.generate_pdf", side_effect=RuntimeError("font missing")):
             with self.assertRaisesRegex(RuntimeError, "font missing"):
                 renderer.render(output, customer)
+
+    def test_render_emits_compat_usage_telemetry(self) -> None:
+        customer = _sample_customer_input()
+        output = _sample_output()
+        renderer = FPDFRenderer()
+
+        with patch("services.infrastructure.pdf.fpdf_renderer.mark_compat_usage") as mock_telemetry:
+            with patch("services.infrastructure.pdf.fpdf_renderer.generate_pdf", return_value=b"%PDF-contract"):
+                renderer.render(output, customer)
+
+        mock_telemetry.assert_called_once_with(
+            contract="services.infrastructure.pdf.fpdf_renderer.FPDFRenderer.render",
+            replacement="services.pdf_generator.generate_pdf",
+        )
 
 
 class ChromaProviderContractTests(unittest.TestCase):
@@ -164,6 +198,31 @@ class ChromaProviderContractTests(unittest.TestCase):
             erp_version="ECC 6.0",
             modules=["FI", "CO"],
             pain_points="closing",
+        )
+
+    def test_chroma_provider_emits_compat_usage_telemetry(self) -> None:
+        bundle = RAGContextBundle(context="ctx", sources=["src"], chunk_count=1)
+        with patch("services.infrastructure.rag.chroma_provider.mark_compat_usage") as mock_telemetry:
+            with patch("services.infrastructure.rag.chroma_provider.get_cached_vector_store"):
+                provider = ChromaRAGProvider()
+            with patch(
+                "services.infrastructure.rag.chroma_provider.get_context_bundle_for_input",
+                return_value=bundle,
+            ):
+                provider.get_context_bundle(
+                    erp_version="ECC 6.0",
+                    modules=["FI"],
+                    pain_points="pain",
+                )
+
+        self.assertGreaterEqual(mock_telemetry.call_count, 2)
+        mock_telemetry.assert_any_call(
+            contract="services.infrastructure.rag.chroma_provider.ChromaRAGProvider.__init__",
+            replacement="services.rag_pipeline.build_vector_store/get_cached_vector_store",
+        )
+        mock_telemetry.assert_any_call(
+            contract="services.infrastructure.rag.chroma_provider.ChromaRAGProvider.get_context_bundle",
+            replacement="services.rag_pipeline.get_context_bundle_for_input",
         )
 
 

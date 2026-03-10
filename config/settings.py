@@ -60,6 +60,11 @@ class Settings(BaseSettings):
     REPORT_PREFLIGHT_ENABLE: bool = True
     REPORT_PREFLIGHT_BLOCK_ON_HIGH: bool = True
 
+    # Safe-lane compatibility wrappers (deprecate + telemetry)
+    COMPAT_TELEMETRY_ENABLE: bool = True
+    COMPAT_DEPRECATION_WARN: bool = True
+    COMPAT_DEPRECATION_REMOVE_AFTER: str = "2026-06-30"
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",
