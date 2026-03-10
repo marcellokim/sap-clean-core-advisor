@@ -152,6 +152,84 @@ class CompatTelemetryReportScriptTests(unittest.TestCase):
         payload = json.loads(result.stdout)
         self.assertFalse(payload["log_exists"])
 
+    def test_report_fail_on_invalid_rows_fails_when_log_has_bad_rows(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            log_path = Path(tmpdir) / "compat_usage.jsonl"
+            now = datetime.now(UTC).isoformat().replace("+00:00", "Z")
+            valid = {
+                "event": "compat_wrapper_used",
+                "contract": "services.analysis_service.analyze_customer_input",
+                "replacement": "services.application.analysis_runner.run_analysis",
+                "remove_after": "2026-06-30",
+                "timestamp_utc": now,
+            }
+            malformed = {
+                "event": "compat_wrapper_used",
+                "contract": "services.infrastructure.pdf.fpdf_renderer.FPDFRenderer.render",
+                "replacement": "services.pdf_generator.generate_pdf",
+                "remove_after": "2026-06-30",
+            }
+            log_path.write_text(
+                "\n".join([json.dumps(valid, ensure_ascii=False), "{bad-json", json.dumps(malformed)])
+                + "\n",
+                encoding="utf-8",
+            )
+
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    "scripts/compat_telemetry_report.py",
+                    "--days",
+                    "7",
+                    "--json",
+                    "--log-path",
+                    str(log_path),
+                    "--fail-on-invalid-rows",
+                ],
+                capture_output=True,
+                text=True,
+                cwd=self._ROOT,
+                check=False,
+            )
+
+        self.assertEqual(result.returncode, 1, msg=result.stderr)
+        payload = json.loads(result.stdout)
+        self.assertEqual(payload["invalid_rows"], 2)
+
+    def test_report_fail_on_invalid_rows_passes_when_log_rows_are_valid(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            log_path = Path(tmpdir) / "compat_usage.jsonl"
+            row = {
+                "event": "compat_wrapper_used",
+                "contract": "services.analysis_service.analyze_customer_input",
+                "replacement": "services.application.analysis_runner.run_analysis",
+                "remove_after": "2026-06-30",
+                "timestamp_utc": datetime.now(UTC).isoformat().replace("+00:00", "Z"),
+            }
+            log_path.write_text(json.dumps(row, ensure_ascii=False) + "\n", encoding="utf-8")
+
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    "scripts/compat_telemetry_report.py",
+                    "--days",
+                    "7",
+                    "--json",
+                    "--log-path",
+                    str(log_path),
+                    "--fail-on-invalid-rows",
+                ],
+                capture_output=True,
+                text=True,
+                cwd=self._ROOT,
+                check=False,
+            )
+
+        self.assertEqual(result.returncode, 0, msg=result.stderr)
+        payload = json.loads(result.stdout)
+        self.assertEqual(payload["invalid_rows"], 0)
+        self.assertEqual(payload["total_events_in_window"], 1)
+
 
 if __name__ == "__main__":
     unittest.main()

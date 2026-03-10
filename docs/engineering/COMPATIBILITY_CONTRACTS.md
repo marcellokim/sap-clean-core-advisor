@@ -16,10 +16,18 @@
 ```bash
 make report-compat-telemetry
 make verify-safe-lane-promotion
+make verify-safe-lane-promotion-strict
 ```
 
 - `make report-compat-telemetry`: 최근 7일 래퍼 호출량 JSON 요약 출력
-- `make verify-safe-lane-promotion`: 7일 호출량 0건 + prune hygiene + `make test-compat` 통과 여부를 일괄 검증
+- `make verify-safe-lane-promotion`: 7일 호출량 0건 + prune hygiene + `make test-compat` 통과 여부를 일괄 검증 (PR/CI 기본 게이트)
+- `make verify-safe-lane-promotion-strict`: `verify-safe-lane-promotion` + telemetry log 존재 강제(`--require-log`) + placeholder empty log 차단 + invalid row 차단(`--fail-on-invalid-rows`) (릴리즈 전 필수 게이트)
+
+### Safe-lane 게이트 적용 기준
+
+- PR/CI 일상 검증: `make verify-safe-lane-promotion`
+- CI strict(선택): telemetry 로그 artifact가 workspace에 주입된 경우 `make verify-safe-lane-promotion-strict` 실행
+- 릴리즈 직전(태그/배포 전) 검증: `make verify-safe-lane-promotion-strict` **필수**
 
 ## 1. `services.analysis_service`
 

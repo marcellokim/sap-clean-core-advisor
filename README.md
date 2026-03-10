@@ -228,6 +228,7 @@ make verify-report-preconfirm
 make verify-prune-hygiene
 make report-compat-telemetry
 make verify-safe-lane-promotion
+make verify-safe-lane-promotion-strict
 make verify-release-readiness
 make qa-report
 ```
@@ -239,10 +240,17 @@ make qa-report
 - `make verify-report-preconfirm`: 인용 커버리지 + 수치/날짜 정합성 사전검증
 - `make verify-prune-hygiene`: fast-lane 삭제 대상/deprecated target(backtest/calibrate) 재유입 방지
 - `make report-compat-telemetry`: 최근 7일 safe-lane 호환 래퍼 호출량 JSON 요약
-- `make verify-safe-lane-promotion`: 7일 호출량 0건 + prune hygiene + compat contract 통합 검증
-- `make verify-release-readiness`: 최종 릴리즈 게이트(`make qa-report` 3회 연속 + `test-compat` + import cycle + safe-lane 승격 검증) 실행 및 리포트 저장(`artifacts/qa/release_readiness.json`)
+- `make verify-safe-lane-promotion`: 7일 호출량 0건 + prune hygiene + compat contract 통합 검증 (PR/CI 기본 게이트)
+- `make verify-safe-lane-promotion-strict`: `verify-safe-lane-promotion` + telemetry 로그 실재 여부(`--require-log`) + 로그 유효성(`--fail-on-invalid-rows`)까지 검증하는 릴리즈 전 필수 게이트
+- `make verify-release-readiness`: 최종 릴리즈 체크리스트(`make qa-report` 3회 연속 + `test-compat` + import cycle + safe-lane **strict** 게이트) 실행 및 리포트 저장(`artifacts/qa/release_readiness.json`)
 - `make qa-report`: 테스트 + 출처 검증 + pre-confirm + prune hygiene 전체 게이트
-- CI(`.github/workflows/ci.yml`)에서도 `make qa-report` + `make verify-safe-lane-promotion`를 필수 게이트로 실행
+- CI(`.github/workflows/ci.yml`)에서는 `make qa-report` + `make verify-safe-lane-promotion`를 기본 게이트로 실행하며, telemetry 로그 artifact가 있을 때만 strict 게이트를 추가 실행합니다. 릴리즈 직전에는 `make verify-safe-lane-promotion-strict`를 필수 실행하세요.
+
+릴리즈 전 권장 순서(필수):
+```bash
+make verify-release-readiness
+make verify-safe-lane-promotion-strict
+```
 
 테스트/검증 커맨드는 synthetic 호출로 telemetry가 오염되지 않도록 기본적으로
 `COMPAT_TELEMETRY_ENABLE=false` 및 `COMPAT_DEPRECATION_WARN=false`로 실행됩니다.
@@ -260,8 +268,9 @@ make qa-report
 - `make verify-report-preconfirm` → PASS
 - `make verify-prune-hygiene` → `[]`
 - `make report-compat-telemetry` → `{ total_events_in_window: 0, promotion_ready: true }`
-- `make verify-safe-lane-promotion` → PASS
-- `make verify-release-readiness` → PASS (`artifacts/qa/release_readiness.json` 생성)
+- `make verify-safe-lane-promotion` → PASS (nonstrict mode)
+- `make verify-safe-lane-promotion-strict` → telemetry log가 없거나 비어있거나 invalid row가 있으면 **의도적으로 FAIL**
+- `make verify-release-readiness` → strict safe-lane 조건 충족 시 PASS (`artifacts/qa/release_readiness.json` 생성)
 - Refactor KPI snapshot: `analysis_runner.py` 439 lines / `app.py` 196 lines
 - Microbench(모킹 LLM, 150회): timeout=0 경로 p95 `0.139ms`, timeout=1000 경로 p95 `0.198ms`
 

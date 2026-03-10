@@ -35,9 +35,21 @@ def _run(cmd: list[str]) -> dict[str, object]:
     }
 
 
+def _safe_lane_target(mode: str) -> str:
+    if mode == "strict":
+        return "verify-safe-lane-promotion-strict"
+    return "verify-safe-lane-promotion-nonstrict"
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--qa-runs", type=int, default=3)
+    parser.add_argument(
+        "--safe-lane-mode",
+        choices=("strict", "nonstrict"),
+        default="strict",
+        help="Safe-lane promotion gate mode. Default is strict.",
+    )
     parser.add_argument(
         "--output",
         default="artifacts/qa/release_readiness.json",
@@ -47,6 +59,7 @@ def main() -> int:
     args = parser.parse_args()
 
     qa_runs = max(1, args.qa_runs)
+    safe_lane_target = _safe_lane_target(args.safe_lane_mode)
     commands: list[list[str]] = []
     for _ in range(qa_runs):
         commands.append(["make", "qa-report"])
@@ -54,7 +67,7 @@ def main() -> int:
         [
             ["make", "test-compat"],
             ["make", "check-import-cycles"],
-            ["make", "verify-safe-lane-promotion"],
+            ["make", safe_lane_target],
         ]
     )
 
@@ -70,6 +83,8 @@ def main() -> int:
     report = {
         "as_of_utc": datetime.now(UTC).isoformat().replace("+00:00", "Z"),
         "qa_runs_required": qa_runs,
+        "safe_lane_mode": args.safe_lane_mode,
+        "safe_lane_target": safe_lane_target,
         "commands_executed": len(results),
         "ok": all_ok,
         "results": results,

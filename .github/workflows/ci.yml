@@ -30,3 +30,11 @@ jobs:
 
       - name: Run safe-lane promotion gate
         run: make verify-safe-lane-promotion
+
+      - name: Run safe-lane promotion strict gate (when telemetry log is provisioned)
+        if: ${{ hashFiles('artifacts/telemetry/compat_usage.jsonl') != '' }}
+        run: make verify-safe-lane-promotion-strict
+
+      - name: Skip strict safe-lane promotion gate (telemetry log missing)
+        if: ${{ hashFiles('artifacts/telemetry/compat_usage.jsonl') == '' }}
+        run: echo "::notice::Skipping verify-safe-lane-promotion-strict (no telemetry log artifact in CI workspace)."

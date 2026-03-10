@@ -45,6 +45,7 @@ def main() -> int:
     parser.add_argument("--log-path", default=settings.COMPAT_TELEMETRY_LOG_PATH)
     parser.add_argument("--json", action="store_true")
     parser.add_argument("--fail-on-usage", action="store_true")
+    parser.add_argument("--fail-on-invalid-rows", action="store_true")
     parser.add_argument("--require-log", action="store_true")
     args = parser.parse_args()
 
@@ -81,12 +82,16 @@ def main() -> int:
             except json.JSONDecodeError:
                 invalid_rows += 1
                 continue
-            timestamp = _parse_ts(event.get("timestamp_utc"))
-            if not timestamp or timestamp < since:
-                continue
-            contract = str(event.get("contract", "")).strip()
-            if not contract:
+            if not isinstance(event, dict):
                 invalid_rows += 1
+                continue
+
+            timestamp = _parse_ts(str(event.get("timestamp_utc", "")).strip())
+            contract = str(event.get("contract", "")).strip()
+            if not timestamp or not contract:
+                invalid_rows += 1
+                continue
+            if timestamp < since:
                 continue
             counter[contract] += 1
             total += 1
@@ -99,11 +104,13 @@ def main() -> int:
         "total_events_in_window": total,
         "contracts": dict(counter),
         "invalid_rows": invalid_rows,
-        "promotion_ready": total == 0,
+        "promotion_ready": total == 0 and invalid_rows == 0,
     }
     print(json.dumps(summary, ensure_ascii=False, indent=2))
 
     if args.fail_on_usage and total > 0:
+        return 1
+    if args.fail_on_invalid_rows and invalid_rows > 0:
         return 1
     return 0
 
