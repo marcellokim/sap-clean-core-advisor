@@ -206,6 +206,7 @@ uv run streamlit run app.py
 ```bash
 make test
 make test-compat
+make check-import-cycles
 make verify-sources
 make verify-report-preconfirm
 make qa-report
@@ -213,6 +214,7 @@ make qa-report
 
 - `make test`: 전체 unit test 실행
 - `make test-compat`: `analysis_service` / `fpdf_renderer` / `chroma_provider` 호환성 계약 테스트 실행
+- `make check-import-cycles`: `services`/`app.py` 내부 import cycle 점검
 - `make verify-sources`: 출처 카탈로그 검증
 - `make verify-report-preconfirm`: 인용 커버리지 + 수치/날짜 정합성 사전검증
 - `make qa-report`: 테스트 + 출처 검증 + pre-confirm 전체 게이트

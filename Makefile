@@ -1,7 +1,7 @@
 PYTHON ?= ./.venv/bin/python
 INDUSTRY ?= manufacturing
 
-.PHONY: run test test-compat verify-sources verify-citations verify-report-consistency verify-report-preconfirm qa-report
+.PHONY: run test test-compat check-import-cycles verify-sources verify-citations verify-report-consistency verify-report-preconfirm qa-report
 
 run:
 	uv run streamlit run app.py
@@ -11,6 +11,9 @@ test:
 
 test-compat:
 	$(PYTHON) -m unittest discover -s tests -p "test_compat_contracts.py" -v
+
+check-import-cycles:
+	python3 scripts/check_import_cycles.py services app.py
 
 verify-sources:
 	$(PYTHON) tools/verify_sources.py --skip-http --json

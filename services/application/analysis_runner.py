@@ -17,33 +17,26 @@ from uuid import uuid4
 from dotenv import load_dotenv
 
 from models.schemas import AdvisorOutput, CustomerInput
+from services.application.report_preflight import render_pdf_output, run_preconfirm_validation
 from services.cost_calculator import CalculationResult, run_calculation
 from services.domain.evidence_engine import build_evidence_ledger
-from services.domain.claim_extractor import extract_report_claims
-from services.domain.citation_validator import validate_citation_coverage
-from services.domain.date_claim_validator import validate_date_claims
 from services.domain.recommendation_engine import (
     RecommendationTrace,
     extract_recommendations,
     format_customer_info,
 )
-from services.domain.report_consistency import validate_report_consistency
 from services.domain.validation_engine import build_validation_warnings
 from services.error_codes import (
     ERR_LLM_AUTH,
     ERR_LLM_DISABLED,
     ERR_LLM_PROVIDER,
     ERR_LLM_RATE_LIMIT,
-    ERR_PDF_FONT,
-    ERR_PDF_LAYOUT_OVERFLOW,
-    ERR_REPORT_VALIDATION,
-    ERR_PDF_UNKNOWN,
     ERR_PROVIDER_NOT_SUPPORTED,
     ERR_RAG_UNAVAILABLE,
 )
 from services.infrastructure.llm.gemini_provider import GeminiLLMProvider
 from services.infrastructure.llm.glm_provider import GLMLLMProvider
-from services.infrastructure.pdf.fpdf_renderer import FPDFRenderer
+from services.infrastructure.pdf.fpdf_renderer import FPDFRenderer  # compatibility for test patch targets
 from services.infrastructure.rag.chroma_provider import ChromaRAGProvider
 from services.llm_provider import LLMProvider, LLMProviderError, LLMUsage, ReportPayload, ReportSections
 from services.rag_pipeline import RAGContextBundle
@@ -157,15 +150,6 @@ def _normalize_llm_error_code(code: str | None) -> str:
         "PROVIDER_UNKNOWN_ERROR": ERR_LLM_PROVIDER,
     }
     return code_map.get(normalized, ERR_LLM_PROVIDER)
-
-
-def _classify_pdf_error(exc: Exception) -> str:
-    msg = str(exc).lower()
-    if "not enough horizontal space" in msg:
-        return ERR_PDF_LAYOUT_OVERFLOW
-    if "font" in msg:
-        return ERR_PDF_FONT
-    return ERR_PDF_UNKNOWN
 
 
 def _usage_tokens_map(usage: LLMUsage) -> dict[str, int]:
@@ -578,75 +562,18 @@ def run_analysis(
         evidence_ledger=evidence_ledger,
     )
 
-    preconfirm_issues = []
-    citation_metrics = None
-    if settings.REPORT_PREFLIGHT_ENABLE:
-        report_claims = extract_report_claims(
-            output.executive_summary,
-            output.detailed_report,
-        )
-        citation_issues, citation_metrics = validate_citation_coverage(
-            output.evidence_ledger,
-            report_claims,
-            strict_reference_ids=True,
-        )
-        consistency_issues = validate_report_consistency(output)
-        date_issues = validate_date_claims(
-            output.executive_summary,
-            output.detailed_report,
-            analysis_date=payload.analysis_date,
-        )
-        preconfirm_issues = citation_issues + consistency_issues + date_issues
-        for issue in preconfirm_issues:
-            validation_warnings.append(
-                f"REPORT_PRECONFIRM_{issue.severity}_{issue.code}: {issue.message}"
-            )
-        if citation_metrics and citation_metrics.coverage_ratio < 1.0:
-            validation_warnings.append(
-                "REPORT_PRECONFIRM_CITATION_COVERAGE: "
-                f"{citation_metrics.with_reference_source_ids}/{citation_metrics.total_claims}"
-            )
-
-        output = output.model_copy(
-            update={
-                "validation_warnings": validation_warnings,
-            }
-        )
+    output, preconfirm_issues, _citation_metrics = run_preconfirm_validation(
+        output,
+        payload.analysis_date,
+        validation_warnings,
+    )
 
     pdf_start = time.perf_counter()
-    pdf_bytes: bytes | None = None
-    pdf_error_code: str | None = None
-    pdf_error_message: str | None = None
-    pdf_status: PDFStatus = "failed"
-    should_block_pdf = (
-        settings.REPORT_PREFLIGHT_ENABLE
-        and settings.REPORT_PREFLIGHT_BLOCK_ON_HIGH
-        and any(issue.severity == "HIGH" for issue in preconfirm_issues)
+    pdf_bytes, pdf_error_code, pdf_error_message, pdf_status = render_pdf_output(
+        output,
+        customer_input,
+        preconfirm_issues,
     )
-    if should_block_pdf:
-        pdf_error_code = ERR_REPORT_VALIDATION
-        high_issue_codes = [
-            issue.code
-            for issue in preconfirm_issues
-            if issue.severity == "HIGH"
-        ]
-        pdf_error_message = (
-            "Pre-confirm validation failed: "
-            + ", ".join(high_issue_codes[:10])
-        )
-        logger.warning(
-            "PDF generation blocked by pre-confirm validation: %s",
-            pdf_error_message,
-        )
-    else:
-        try:
-            renderer = FPDFRenderer()
-            pdf_bytes = renderer.render(output, customer_input)
-            pdf_status = "ok"
-        except Exception as exc:
-            pdf_error_code = _classify_pdf_error(exc)
-            pdf_error_message = str(exc).strip() or None
-            logger.warning("PDF generation failed: [%s] %s", pdf_error_code, exc)
     stage_metrics_ms["pdf_ms"] = _elapsed_ms(pdf_start)
     stage_metrics_ms["total_ms"] = _elapsed_ms(total_start)
     output = output.model_copy(
