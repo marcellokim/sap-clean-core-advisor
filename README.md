@@ -110,6 +110,7 @@ LLM 결과 품질을 안정화하기 위해 아래 보호 장치를 사용합니
 ### 1) Deterministic Assessment Engine
 - 입력값 기반으로 일관된 수치 계산
   - score / tco / risk / tech debt breakdown
+  - custom program density, DB size, 모듈 가중치, pain point 신호까지 반영해 민감도 개선
   - ruleset profile/source/version 추적
 
 ### 2) Policy-Driven Analysis Runner
@@ -146,10 +147,15 @@ services/
   application/report_content.py    # report payload/fallback/quality helpers
   application/report_preflight.py  # pre-confirm + PDF gate helpers
   cost_calculator.py               # KPI calculations
+  pain_point_signals.py            # deterministic pain-point keyword tagging
   domain/                          # recommendation/evidence/validation
   infrastructure/                  # llm/rag/pdf adapters + compat telemetry
 ui/sidebar.py                      # sidebar/support-pack rendering
 tests/                             # unit tests
+tests/fixtures/demo_benchmark.yaml # deterministic benchmark cases for calibration
+tests/test_calibration_regressions.py # calibrated score/risk/recommendation regression guards
+artifacts/calibration/             # benchmark evaluation JSON/Markdown outputs
+tools/evaluate_demo_benchmark.py   # benchmark fixture evaluation + artifact generation
 tools/verify_sources.py            # source catalog validator
 tools/snapshot_sources.py          # source snapshot/hash refresh
 scripts/check_import_cycles.py     # internal import cycle checker
@@ -217,7 +223,48 @@ uv run streamlit run app.py
 
 ---
 
-## 10) Reproducibility & Quality Checks
+## 10) Benchmark-Driven Calibration Workflow
+
+- Benchmark fixture: `tests/fixtures/demo_benchmark.yaml`
+  - 16 deterministic benchmark cases across manufacturing / retail / finance / base fallback profiles
+  - extreme scenarios included: high custom ratio, huge DB, short timeline, multi-axis pain points
+  - each case records `input`, `expected_score_range`, `expected_risk_level`, `expected_rule_ids_any`, `expected_recommendation_ids_any`, and `notes`
+  - the current P4 sharpening pass freezes the three closest-score pairs into tighter score bands and records pair-level gap expectations in `metadata.tuning_expectations.closest_score_pairs`
+- Evaluation harness: `tools/evaluate_demo_benchmark.py`
+  - evaluates the fixture against the deterministic calculator + recommendation engine
+  - writes calibration artifacts to:
+    - `artifacts/calibration/demo_benchmark_eval.json`
+    - `artifacts/calibration/demo_benchmark_eval.md`
+  - emits `tuning_signals` for calibration work:
+    - score / current TCO / projected TCO dispersion summaries
+    - closest score pairs that may still feel too similar
+    - narrowest score-range headroom cases to avoid over-tuning
+  - usage:
+
+```bash
+./.venv/bin/python tools/evaluate_demo_benchmark.py --json
+./.venv/bin/python tools/evaluate_demo_benchmark.py --path tests/fixtures/demo_benchmark.yaml --output-dir artifacts/calibration --json
+```
+
+- Regression coverage: `tests/test_calibration_regressions.py`
+  - protects calibrated scoring/risk/recommendation behavior such as DB penalty sensitivity, dual/multi-axis pain-point mapping, high-custom module containment recommendations, and tight-timeline risk rules
+- Signal guardrails: `tests/test_evaluate_demo_benchmark.py`
+  - verifies the frozen closest-score pair ordering/gaps and confirms those cases dominate the tightest benchmark headroom signals
+- Promotion gate:
+  - promote a calibration candidate only when score/risk/recommendation benchmark coverage stays at 100%
+  - prefer targeted differentiation gains in under-colliding profiles and stop before additional aggressive global rescaling
+- Operator guide: `docs/engineering/CALIBRATION_PLAYBOOK.md`
+- Recommended benchmark verification loop:
+
+```bash
+make test
+make verify-sources
+./.venv/bin/python tools/evaluate_demo_benchmark.py --json
+```
+
+---
+
+## 11) Reproducibility & Quality Checks
 
 ```bash
 make test
@@ -275,15 +322,16 @@ make verify-safe-lane-promotion-strict
 - Microbench(모킹 LLM, 150회): timeout=0 경로 p95 `0.139ms`, timeout=1000 경로 p95 `0.198ms`
 
 예시(결정론 샘플 케이스 기준 기대값):
-- Clean Core Score: `42.6`
-- Current / Projected TCO: `1.06 / 0.95`
+- Clean Core Score: `41.0`
+- Current / Projected TCO: `1.07 / 0.96`
 - 3-year savings: `0.33`
 
 ---
 
-## 11) Docs & Assets
+## 12) Docs & Assets
 
 - Engineering appendix: `docs/engineering/ARCHITECTURE_APPENDIX.md`
+- Calibration playbook: `docs/engineering/CALIBRATION_PLAYBOOK.md`
 - Compatibility contracts: `docs/engineering/COMPATIBILITY_CONTRACTS.md`
   - safe-lane deprecate/telemetry 정책 및 제거 목표일(`2026-06-30`) 포함
 - Release notes (2026-03-10): `docs/engineering/RELEASE_NOTES_2026-03-10.md`
@@ -294,7 +342,7 @@ make verify-safe-lane-promotion-strict
 
 ---
 
-## 12) Known Limitations
+## 13) Known Limitations
 
 - TCO는 계약/조달 조건을 반영하지 않은 의사결정용 상대 추정치입니다.
 - LLM 품질은 모델/키 상태/네트워크에 영향을 받으며, 품질 게이트 실패 시 fallback 보고서가 사용됩니다.
@@ -302,7 +350,7 @@ make verify-safe-lane-promotion-strict
 
 ---
 
-## 13) References
+## 14) References
 
 - SAP RISE Clean Core:
   https://www.sap.com/products/erp/rise/methodology/clean-core.html

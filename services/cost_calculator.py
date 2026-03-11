@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from models.schemas import CustomerInput
+from services.pain_point_signals import detect_pain_point_categories
 from services.ruleset_loader import RulesetProfile, resolve_ruleset_profile
 
 # Fallback reference version. Actual run uses resolved ruleset version.
@@ -101,10 +102,17 @@ def _get_formula_params(profile: RulesetProfile) -> dict[str, float]:
     raw = _get_config_section(profile, "formula")
     return {
         "custom_code_multiplier": _as_float(raw.get("custom_code_multiplier"), 1.5),
+        "custom_program_density_penalty_rate": _as_float(raw.get("custom_program_density_penalty_rate"), 0.08),
+        "custom_program_density_penalty_cap": _as_float(raw.get("custom_program_density_penalty_cap"), 10.0),
         "module_severity_multiplier": _as_float(raw.get("module_severity_multiplier"), 50.0),
         "module_count_penalty_per_module": _as_float(raw.get("module_count_penalty_per_module"), 3.0),
         "module_count_penalty_cap": _as_float(raw.get("module_count_penalty_cap"), 30.0),
+        "high_custom_module_penalty": _as_float(raw.get("high_custom_module_penalty"), 4.0),
+        "high_custom_module_penalty_cap": _as_float(raw.get("high_custom_module_penalty_cap"), 12.0),
         "module_complexity_empty_score": _as_float(raw.get("module_complexity_empty_score"), 80.0),
+        "database_size_penalty_per_tb": _as_float(raw.get("database_size_penalty_per_tb"), 3.0),
+        "database_size_penalty_cap": _as_float(raw.get("database_size_penalty_cap"), 15.0),
+        "hana_size_penalty_multiplier": _as_float(raw.get("hana_size_penalty_multiplier"), 0.35),
     }
 
 
@@ -171,42 +179,70 @@ def calculate_clean_core_score(
     applied_rule_ids: list[str] = []
 
     applied_rule_ids.append("SCORE_CUSTOM_CODE_LINEAR_1P5")
+    custom_program_density = inp.num_custom_programs / max(inp.num_users / 100.0, 1.0)
+    custom_program_penalty = min(
+        formula["custom_program_density_penalty_cap"],
+        custom_program_density * formula["custom_program_density_penalty_rate"],
+    )
+    applied_rule_ids.append("SCORE_CUSTOM_PROGRAM_DENSITY_V1")
     scores["custom_code"] = max(
         0.0,
-        100.0 - inp.custom_code_ratio * formula["custom_code_multiplier"],
+        100.0
+        - inp.custom_code_ratio * formula["custom_code_multiplier"]
+        - custom_program_penalty,
     )
 
     applied_rule_ids.append("SCORE_ERP_VERSION_LOOKUP")
     scores["erp_version"] = erp_scores.get(inp.erp_version, 30.0)
 
+    database_size_penalty = min(
+        formula["database_size_penalty_cap"],
+        (inp.db_size_gb / 1000.0) * formula["database_size_penalty_per_tb"],
+    )
     if "HANA" in inp.db_type.upper():
         applied_rule_ids.append("SCORE_DATABASE_HANA")
-        scores["database"] = db_scores["hana"]
+        applied_rule_ids.append("SCORE_DATABASE_SIZE_MODIFIER_V1")
+        scores["database"] = max(
+            0.0,
+            db_scores["hana"] - database_size_penalty * formula["hana_size_penalty_multiplier"],
+        )
     elif "ORACLE" in inp.db_type.upper():
         applied_rule_ids.append("SCORE_DATABASE_ORACLE")
-        scores["database"] = db_scores["oracle"]
+        applied_rule_ids.append("SCORE_DATABASE_SIZE_MODIFIER_V1")
+        scores["database"] = max(0.0, db_scores["oracle"] - database_size_penalty)
     elif "SQL" in inp.db_type.upper():
         applied_rule_ids.append("SCORE_DATABASE_SQL")
-        scores["database"] = db_scores["sql"]
+        applied_rule_ids.append("SCORE_DATABASE_SIZE_MODIFIER_V1")
+        scores["database"] = max(0.0, db_scores["sql"] - database_size_penalty)
     else:
         applied_rule_ids.append("SCORE_DATABASE_OTHER")
-        scores["database"] = db_scores["other"]
+        applied_rule_ids.append("SCORE_DATABASE_SIZE_MODIFIER_V1")
+        scores["database"] = max(0.0, db_scores["other"] - database_size_penalty)
 
     if inp.modules:
         applied_rule_ids.append("SCORE_MODULE_COMPLEXITY_WITH_MODULES")
-        avg_severity = sum(
-            customization_score.get(m.customization_level, 0.5)
+        module_weights = _get_module_weights(profile)
+        total_weight = sum(module_weights.get(m.module_name, 1.0) for m in inp.modules)
+        weighted_severity = sum(
+            module_weights.get(m.module_name, 1.0) * customization_score.get(m.customization_level, 0.5)
             for m in inp.modules
-        ) / len(inp.modules)
+        ) / max(total_weight, 1.0)
         module_count_penalty = min(
             len(inp.modules) * formula["module_count_penalty_per_module"],
             formula["module_count_penalty_cap"],
         )
+        high_custom_module_penalty = min(
+            sum(1 for m in inp.modules if m.customization_level == "high")
+            * formula["high_custom_module_penalty"],
+            formula["high_custom_module_penalty_cap"],
+        )
+        applied_rule_ids.append("SCORE_MODULE_WEIGHTED_SEVERITY_V2")
         scores["module_complexity"] = max(
             0.0,
             100.0
-            - avg_severity * formula["module_severity_multiplier"]
-            - module_count_penalty,
+            - weighted_severity * formula["module_severity_multiplier"]
+            - module_count_penalty
+            - high_custom_module_penalty,
         )
     else:
         applied_rule_ids.append("SCORE_MODULE_COMPLEXITY_EMPTY_MODULES")
@@ -263,23 +299,27 @@ def assess_risks(
 
     risk_factors: list[str] = []
     applied_rule_ids: list[str] = []
+    severity_points = 0.0
 
     if inp.custom_code_ratio > float(thresholds["custom_ratio_high"]):
         applied_rule_ids.append("RISK_CUSTOM_RATIO_HIGH")
         risk_factors.append(
             f"커스텀 코드 비중이 {inp.custom_code_ratio}%로 매우 높음 – 전환 시 대규모 리팩토링 필요"
         )
+        severity_points += 3.0
     elif inp.custom_code_ratio > float(thresholds["custom_ratio_medium"]):
         applied_rule_ids.append("RISK_CUSTOM_RATIO_MEDIUM")
         risk_factors.append(
             f"커스텀 코드 비중 {inp.custom_code_ratio}% – 선별적 코드 정리 필요"
         )
+        severity_points += 1.5
 
     if inp.erp_version in ("ECC 5.0", "R/3 4.7"):
         applied_rule_ids.append("RISK_ERP_EOS_IMMINENT")
         risk_factors.append(
             f"{inp.erp_version}는 지원 종료(EOS) 임박 – 즉각적인 전환 계획 필요"
         )
+        severity_points += 4.0
     elif "ECC 6.0" in inp.erp_version:
         applied_rule_ids.append("RISK_BS7_MAINSTREAM_END_2027")
         applied_rule_ids.append("INFO_BS7_EXTENDED_MAINT_AVAILABLE_2030")
@@ -287,12 +327,14 @@ def assess_risks(
             "Business Suite 7 메인스트림 유지보수 종료(2027-12-31) 예정 – "
             "Extended Maintenance 옵션(2030-12-31) 검토 필요"
         )
+        severity_points += 2.0
 
     if "HANA" not in inp.db_type.upper():
         applied_rule_ids.append("RISK_DB_NOT_HANA")
         risk_factors.append(
             f"현재 DB({inp.db_type})에서 SAP HANA로의 마이그레이션 필요 – 추가 비용 및 기간 발생"
         )
+        severity_points += 1.5
 
     high_custom_modules = [
         m.module_name for m in inp.modules if m.customization_level == "high"
@@ -302,6 +344,13 @@ def assess_risks(
         risk_factors.append(
             f"고(High) 커스텀 모듈 {len(high_custom_modules)}개({', '.join(high_custom_modules)}) – 모듈별 단계적 전환 필수"
         )
+        severity_points += 2.5
+    elif high_custom_modules:
+        applied_rule_ids.append("RISK_HIGH_CUSTOM_MODULES_PRESENT")
+        risk_factors.append(
+            f"고(High) 커스텀 모듈 {len(high_custom_modules)}개({', '.join(high_custom_modules)}) – 우선 정비 대상 지정 필요"
+        )
+        severity_points += 1.0
 
     if (
         inp.migration_timeline_months < int(thresholds["timeline_months_tight"])
@@ -311,12 +360,29 @@ def assess_risks(
         risk_factors.append(
             f"커스텀 프로그램 {inp.num_custom_programs}개 대비 전환 기간 {inp.migration_timeline_months}개월은 매우 촉박"
         )
+        severity_points += 2.5
+    elif (
+        inp.migration_timeline_months < int(thresholds["timeline_months_tight"]) + 6
+        and inp.num_custom_programs > int(float(thresholds["timeline_custom_programs_tight"]) * 0.7)
+    ):
+        applied_rule_ids.append("RISK_TIMELINE_BUFFER_LOW")
+        risk_factors.append(
+            f"전환 기간 {inp.migration_timeline_months}개월 대비 커스텀 프로그램 {inp.num_custom_programs}개 – 상세 wave 계획 필요"
+        )
+        severity_points += 1.0
 
     if inp.db_size_gb > float(thresholds["db_size_large_gb"]):
         applied_rule_ids.append("RISK_DB_SIZE_LARGE")
         risk_factors.append(
             f"DB 사이즈 {inp.db_size_gb:,.0f}GB – 데이터 아카이빙 및 정리 선행 필요"
         )
+        severity_points += 2.0
+    elif inp.db_size_gb > float(thresholds["db_size_large_gb"]) * 0.6 and "HANA" not in inp.db_type.upper():
+        applied_rule_ids.append("RISK_DB_SIZE_ELEVATED")
+        risk_factors.append(
+            f"DB 사이즈 {inp.db_size_gb:,.0f}GB – 대용량 전환 사전 정리 및 다운타임 최적화 검토 필요"
+        )
+        severity_points += 0.75
 
     if inp.annual_it_budget_krw > 0:
         budget_ratio = current_annual_tco / inp.annual_it_budget_krw
@@ -325,20 +391,40 @@ def assess_risks(
             risk_factors.append(
                 "현재 추정 TCO가 연간 IT 예산을 초과합니다 – 단계별 전환 및 비용 최적화 우선 검토 필요"
             )
+            severity_points += 3.0
         elif budget_ratio >= float(thresholds["budget_ratio_medium"]):
             applied_rule_ids.append("RISK_BUDGET_RATIO_OVER_70")
             risk_factors.append(
                 "현재 추정 TCO가 연간 IT 예산의 70% 이상을 점유합니다 – 운영비 구조 개선 필요"
             )
+            severity_points += 1.5
 
-    if clean_core_score < float(thresholds["risk_level_score_high"]) or len(risk_factors) >= int(
-        thresholds["risk_factor_count_high"]
-    ):
+    pain_point_categories = detect_pain_point_categories(inp.pain_points)
+    if len(pain_point_categories) >= 3:
+        applied_rule_ids.append("RISK_PAIN_POINTS_MULTI_AXIS")
+        risk_factors.append(
+            "주요 고충사항이 성능/업그레이드/운영 프로세스 등 복합 이슈를 시사합니다 – 사전 진단 범위 확대 필요"
+        )
+        severity_points += 1.5
+    elif len(pain_point_categories) >= 2:
+        applied_rule_ids.append("RISK_PAIN_POINTS_DUAL_AXIS")
+        risk_factors.append(
+            "주요 고충사항이 2개 이상 운영 축에 걸쳐 있습니다 – 핵심 pain point별 개선 트랙 분리가 필요"
+        )
+        severity_points += 1.0
+
+    if clean_core_score < float(thresholds["risk_level_score_high"]):
+        applied_rule_ids.append("RISK_SCORE_LT_HIGH_THRESHOLD")
+        severity_points += 2.5
+    elif clean_core_score < float(thresholds["risk_level_score_medium"]):
+        applied_rule_ids.append("RISK_SCORE_LT_MEDIUM_THRESHOLD")
+        severity_points += 1.0
+
+    applied_rule_ids.append("RISK_LEVEL_WEIGHTED_SEVERITY_V2")
+    if severity_points >= 7.0:
         applied_rule_ids.append("RISK_LEVEL_HIGH_RULE")
         risk_level = "High"
-    elif clean_core_score < float(thresholds["risk_level_score_medium"]) or len(risk_factors) >= int(
-        thresholds["risk_factor_count_medium"]
-    ):
+    elif severity_points >= 3.0:
         applied_rule_ids.append("RISK_LEVEL_MEDIUM_RULE")
         risk_level = "Medium"
     else:

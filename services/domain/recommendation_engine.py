@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import os
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -10,6 +9,7 @@ import yaml
 
 from models.schemas import CustomerInput
 from services.cost_calculator import CalculationResult
+from services.pain_point_signals import detect_pain_point_categories
 
 
 @dataclass(frozen=True)
@@ -163,6 +163,21 @@ def extract_recommendations(calc: CalculationResult, inp: CustomerInput, lang: s
             [_fact("FACT_TIMELINE", months=inp.migration_timeline_months), _fact("FACT_MODULE_COUNT", count=len(inp.modules))],
         )
 
+    pain_point_categories = detect_pain_point_categories(inp.pain_points)
+    pain_point_fact = inp.pain_points.strip()
+    pain_point_rules = [
+        ("financial_close", "REC_PAIN_FIN_CLOSE"),
+        ("performance", "REC_PAIN_PERFORMANCE"),
+        ("upgrade", "REC_PAIN_UPGRADE_COMPAT"),
+        ("integration", "REC_PAIN_INTEGRATION"),
+        ("ai_data", "REC_PAIN_AI_DATA"),
+        ("security", "REC_PAIN_SECURITY"),
+    ]
+    for category, rule_id in pain_point_rules:
+        if category not in pain_point_categories:
+            continue
+        _append(rule_id, rule_id, [pain_point_fact] if pain_point_fact else [])
+
     # 저위험/고성숙 케이스에서도 실행 가능한 액션이 최소 3개는 제공되도록 보강한다.
     baseline_candidates = [
         ("REC_LOW_RISK_GOVERNANCE", "REC_LOW_RISK_GOVERNANCE"),
@@ -170,13 +185,16 @@ def extract_recommendations(calc: CalculationResult, inp: CustomerInput, lang: s
         ("REC_LOW_RISK_ROADMAP", "REC_LOW_RISK_ROADMAP"),
     ]
     existing_rule_ids = {rid for trace in traces for rid in trace.rule_ids}
+    baseline_minimum = 2 if calc.risk_level == "Low" else 0
+    baseline_added = 0
     for msg_key, rule_id in baseline_candidates:
-        if len(traces) >= 3:
+        if len(traces) >= 3 and baseline_added >= baseline_minimum:
             break
         if rule_id in existing_rule_ids:
             continue
         _append(msg_key, rule_id, [base_score_fact])
         existing_rule_ids.add(rule_id)
+        baseline_added += 1
 
     if not traces:
         _append(

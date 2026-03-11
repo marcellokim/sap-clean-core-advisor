@@ -24,6 +24,11 @@ SAP_RED = "#BB0000"
 RISK_COLORS = {"High": SAP_RED, "Medium": SAP_ORANGE, "Low": SAP_GREEN}
 
 
+def _format_b_krw(value: float) -> str:
+    """Format billion-KRW values with enough precision to surface small differences."""
+    return f"{value:.2f}" if abs(value) < 10 else f"{value:.1f}"
+
+
 def _render_score_gauge(score: float) -> go.Figure:
     """Clean Core Score 게이지 차트."""
     if score >= 70:
@@ -248,17 +253,23 @@ def render_dashboard(
     with kpi1:
         st.metric("Clean Core Score 🏆", f"{output.clean_core_score:.1f} / 100")
     with kpi2:
-        st.metric(_("현재 연간 TCO 📉", "Current Annual TCO 📉"), _("{}억원", "{}B").format(f"{output.current_annual_tco:.1f}"))
+        st.metric(
+            _("현재 연간 TCO 📉", "Current Annual TCO 📉"),
+            _("{}억원", "{}B").format(_format_b_krw(output.current_annual_tco)),
+        )
     with kpi3:
         delta_tco = output.projected_tco_after_migration - output.current_annual_tco
         st.metric(
             _("전환 후 TCO 예상 📊", "Projected TCO 📊"),
-            _("{}억원", "{}B").format(f"{output.projected_tco_after_migration:.1f}"),
-            delta=_("{}억원", "{}B").format(f"{delta_tco:+.1f}"),
+            _("{}억원", "{}B").format(_format_b_krw(output.projected_tco_after_migration)),
+            delta=_("{}억원", "{}B").format(f"{delta_tco:+.2f}" if abs(delta_tco) < 10 else f"{delta_tco:+.1f}"),
             delta_color="inverse",
         )
     with kpi4:
-        st.metric(_("3년 누적 TCO 절감 💰", "3-Year TCO Savings 💰"), _("{}억원", "{}B").format(f"{output.tco_savings_3yr:.1f}"))
+        st.metric(
+            _("3년 누적 TCO 절감 💰", "3-Year TCO Savings 💰"),
+            _("{}억원", "{}B").format(_format_b_krw(output.tco_savings_3yr)),
+        )
 
     # ── 리스크 수준 배지 ──
     risk_color = RISK_COLORS.get(output.risk_level, SAP_ORANGE)

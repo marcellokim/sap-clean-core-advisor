@@ -53,22 +53,28 @@ class CostCalculatorTests(unittest.TestCase):
 
     def test_tco_matches_expected_numbers(self) -> None:
         current_tco, projected_tco, savings_3yr, applied_rule_ids = calculate_tco(_sample_input())
-        self.assertAlmostEqual(current_tco, 1.06, places=2)
-        self.assertAlmostEqual(projected_tco, 0.95, places=2)
+        self.assertAlmostEqual(current_tco, 1.07, places=2)
+        self.assertAlmostEqual(projected_tco, 0.96, places=2)
         self.assertAlmostEqual(savings_3yr, 0.33, places=2)
         self.assertIn("TCO_SAVINGS_3YR_DELTA", applied_rule_ids)
 
     def test_clean_core_score_and_breakdown_are_consistent(self) -> None:
         result = run_calculation(_sample_input())
-        self.assertAlmostEqual(result.clean_core_score, 42.6, places=1)
-        self.assertEqual(result.score_breakdown["custom_code"], 32.5)
+        self.assertAlmostEqual(result.clean_core_score, 41.0, places=1)
+        self.assertEqual(result.score_breakdown["custom_code"], 27.7)
         self.assertEqual(result.score_breakdown["erp_version"], 40.0)
-        self.assertEqual(result.score_breakdown["database"], 45.0)
-        self.assertEqual(result.score_breakdown["module_complexity"], 58.0)
+        self.assertEqual(result.score_breakdown["database"], 43.4)
+        self.assertEqual(result.score_breakdown["module_complexity"], 56.8)
         self.assertEqual(result.ruleset_version, RULESET_VERSION)
         self.assertEqual(result.ruleset_profile_id, "manufacturing")
         self.assertEqual(result.ruleset_profile_source, "industry")
         self.assertIn("RISK_BS7_MAINSTREAM_END_2027", result.applied_rule_ids)
+
+    def test_clean_core_score_reflects_custom_program_density(self) -> None:
+        small_user_base = run_calculation(_sample_input(num_users=100))
+        large_user_base = run_calculation(_sample_input(num_users=5000))
+
+        self.assertLess(small_user_base.clean_core_score, large_user_base.clean_core_score)
 
     def test_budget_pressure_risk_is_added_for_high_tco_ratio(self) -> None:
         low_budget_input = _sample_input(annual_it_budget_krw=1.0)

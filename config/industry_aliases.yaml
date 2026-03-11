@@ -11,14 +11,17 @@
       "retail",
       "commerce",
       "유통",
-      "리테일"
+      "리테일",
+      "유통/리테일"
     ],
     "finance": [
       "finance",
       "financial",
       "banking",
       "금융",
-      "은행"
+      "은행",
+      "보험",
+      "금융/보험"
     ]
   }
 }

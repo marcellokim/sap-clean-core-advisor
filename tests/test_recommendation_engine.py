@@ -46,6 +46,17 @@ class RecommendationEngineTests(unittest.TestCase):
         }
         self.assertGreaterEqual(len(rule_ids & low_risk_boosters), 2)
 
+    def test_pain_points_add_contextual_recommendations(self) -> None:
+        inp = _low_risk_input().model_copy(
+            update={"pain_points": "월마감 지연과 업그레이드 호환성 문제가 반복됩니다."}
+        )
+        calc = run_calculation(inp)
+        traces = extract_recommendations(calc, inp, lang="ko")
+
+        rule_ids = {rid for trace in traces for rid in trace.rule_ids}
+        self.assertIn("REC_PAIN_FIN_CLOSE", rule_ids)
+        self.assertIn("REC_PAIN_UPGRADE_COMPAT", rule_ids)
+
 
 if __name__ == "__main__":
     unittest.main()

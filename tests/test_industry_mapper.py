@@ -13,6 +13,16 @@ class IndustryMapperTests(unittest.TestCase):
         self.assertTrue(result.matched)
         self.assertEqual(result.profile_key, "manufacturing")
 
+    def test_ui_retail_label_maps_to_retail_profile(self) -> None:
+        result = resolve_industry_profile("유통/리테일")
+        self.assertTrue(result.matched)
+        self.assertEqual(result.profile_key, "retail")
+
+    def test_ui_finance_label_maps_to_finance_profile(self) -> None:
+        result = resolve_industry_profile("금융/보험")
+        self.assertTrue(result.matched)
+        self.assertEqual(result.profile_key, "finance")
+
     def test_unknown_industry_falls_back_to_base(self) -> None:
         result = resolve_industry_profile("Space Mining")
         self.assertFalse(result.matched)

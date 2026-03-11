@@ -147,10 +147,17 @@ def resolve_ruleset_profile(industry: str) -> RulesetResolution:
             "database_scores": {"hana": 90.0, "oracle": 45.0, "sql": 40.0, "other": 35.0},
             "formula": {
                 "custom_code_multiplier": 1.5,
+                "custom_program_density_penalty_rate": 0.08,
+                "custom_program_density_penalty_cap": 10.0,
                 "module_severity_multiplier": 50.0,
                 "module_count_penalty_per_module": 3.0,
                 "module_count_penalty_cap": 30.0,
                 "module_complexity_empty_score": 80.0,
+                "high_custom_module_penalty": 4.0,
+                "high_custom_module_penalty_cap": 12.0,
+                "database_size_penalty_per_tb": 3.0,
+                "database_size_penalty_cap": 15.0,
+                "hana_size_penalty_multiplier": 0.35,
             },
             "tco": {
                 "infra_cost_per_user": 0.0003,

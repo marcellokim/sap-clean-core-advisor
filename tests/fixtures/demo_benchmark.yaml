@@ -1,0 +1,685 @@
+schema_version: 1
+benchmark_id: demo_benchmark_v1
+description: Deterministic benchmark fixture for benchmark-driven clean-core calibration.
+  Covers manufacturing, retail, finance, base fallback, and four edge scenarios.
+metadata:
+  tuning_expectations:
+    closest_score_pairs:
+    - left_case_id: retail_low_risk_promo
+      right_case_id: mfg_s4_stable
+      minimum_gap: 0.2
+      rationale: Keep the healthy manufacturing S/4 baseline slightly above the retail
+        promo baseline.
+    - left_case_id: mfg_high_custom_factory
+      right_case_id: extreme_high_custom_ratio
+      minimum_gap: 0.5
+      rationale: Preserve visible separation between heavy factory customization pressure
+        and the pure custom-ratio edge case.
+    - left_case_id: extreme_multi_axis_pain
+      right_case_id: extreme_short_timeline
+      minimum_gap: 0.8
+      rationale: Keep the six-axis pain fallback case distinct from the short-timeline
+        finance stress case.
+cases:
+- case_id: mfg_ecc_foundation
+  tags:
+  - manufacturing
+  - ecc
+  - oracle
+  - baseline
+  input:
+    company_name: 한빛정밀
+    industry: 제조
+    erp_version: ECC 6.0
+    db_type: Oracle
+    db_size_gb: 600.0
+    num_users: 900
+    num_custom_programs: 320
+    custom_code_ratio: 42.0
+    modules:
+    - module_name: FI
+      customization_level: medium
+    - module_name: CO
+      customization_level: medium
+    - module_name: MM
+      customization_level: medium
+    - module_name: PP
+      customization_level: medium
+    annual_it_budget_krw: 55.0
+    pain_points: 월마감 지연과 인터페이스 오류
+    migration_timeline_months: 18
+  expected_score_range:
+    min: 40
+    max: 46
+  expected_risk_level: High
+  expected_rule_ids_any:
+  - RISK_BS7_MAINSTREAM_END_2027
+  - RISK_DB_NOT_HANA
+  - RISK_PAIN_POINTS_DUAL_AXIS
+  expected_recommendation_ids_any:
+  - REC_DB_TO_HANA
+  - REC_PAIN_FIN_CLOSE
+  - REC_PAIN_INTEGRATION
+  notes: Manufacturing baseline with ECC + Oracle debt and dual-axis close/integration
+    pain signals.
+- case_id: mfg_high_custom_factory
+  tags:
+  - manufacturing
+  - edge/high_custom_ratio
+  - edge/short_timeline
+  - heavy_custom
+  input:
+    company_name: 대한기어
+    industry: 제조
+    erp_version: ECC 6.0
+    db_type: Oracle
+    db_size_gb: 2800.0
+    num_users: 650
+    num_custom_programs: 780
+    custom_code_ratio: 68.0
+    modules:
+    - module_name: FI
+      customization_level: high
+    - module_name: CO
+      customization_level: high
+    - module_name: PP
+      customization_level: high
+    - module_name: MM
+      customization_level: medium
+    - module_name: QM
+      customization_level: high
+    - module_name: PM
+      customization_level: medium
+    annual_it_budget_krw: 40.0
+    pain_points: 결산 지연, 업그레이드 호환성, 성능 저하
+    migration_timeline_months: 10
+  expected_score_range:
+    min: 20.8
+    max: 22.4
+  expected_risk_level: High
+  expected_rule_ids_any:
+  - RISK_CUSTOM_RATIO_HIGH
+  - RISK_HIGH_CUSTOM_MODULES_3PLUS
+  - RISK_TIMELINE_TOO_SHORT_FOR_CUSTOM
+  - RISK_PAIN_POINTS_MULTI_AXIS
+  expected_recommendation_ids_any:
+  - REC_SCORE_LT_30
+  - REC_CUSTOM_RATIO_OVER_40
+  - REC_HIGH_CUSTOM_MODULE_BTP
+  - REC_TIMELINE_TIGHT_PHASED
+  notes: Manufacturing heavy-custom extreme with four high-custom modules and compressed
+    timeline.
+- case_id: mfg_s4_stable
+  tags:
+  - manufacturing
+  - s4hana
+  - hana
+  - low_risk
+  input:
+    company_name: 미래소재
+    industry: 제조업
+    erp_version: S/4HANA 2023
+    db_type: SAP HANA
+    db_size_gb: 850.0
+    num_users: 1200
+    num_custom_programs: 90
+    custom_code_ratio: 12.0
+    modules:
+    - module_name: FI
+      customization_level: low
+    - module_name: MM
+      customization_level: low
+    - module_name: PP
+      customization_level: medium
+    - module_name: QM
+      customization_level: low
+    annual_it_budget_krw: 80.0
+    pain_points: 분석 리포트 정합성과 현장 데이터 활용성 강화 필요
+    migration_timeline_months: 24
+  expected_score_range:
+    min: 81.1
+    max: 82.7
+  expected_risk_level: Low
+  expected_rule_ids_any:
+  - SCORE_DATABASE_HANA
+  - RISK_LEVEL_LOW_RULE
+  expected_recommendation_ids_any:
+  - REC_PAIN_AI_DATA
+  - REC_LOW_RISK_GOVERNANCE
+  - REC_LOW_RISK_KPI_MONITORING
+  notes: Healthy manufacturing S/4 baseline to ensure low-risk recommendations still
+    surface actionable governance items.
+- case_id: mfg_large_db_wave
+  tags:
+  - manufacturing
+  - large_db
+  - oracle
+  - wave_planning
+  input:
+    company_name: 동명화학
+    industry: mfg
+    erp_version: ECC 6.0 EHP8
+    db_type: Oracle
+    db_size_gb: 5200.0
+    num_users: 2200
+    num_custom_programs: 410
+    custom_code_ratio: 38.0
+    modules:
+    - module_name: FI
+      customization_level: medium
+    - module_name: MM
+      customization_level: high
+    - module_name: PP
+      customization_level: high
+    - module_name: PM
+      customization_level: medium
+    - module_name: QM
+      customization_level: medium
+    annual_it_budget_krw: 95.0
+    pain_points: 배치 지연과 설비 데이터 연계 실패
+    migration_timeline_months: 16
+  expected_score_range:
+    min: 37
+    max: 43
+  expected_risk_level: High
+  expected_rule_ids_any:
+  - RISK_DB_SIZE_LARGE
+  - RISK_DB_NOT_HANA
+  - RISK_HIGH_CUSTOM_MODULES_PRESENT
+  expected_recommendation_ids_any:
+  - REC_DB_TO_HANA
+  - REC_HIGH_CUSTOM_MODULE_BTP
+  - REC_PAIN_INTEGRATION
+  notes: Manufacturing large-database case intended to pressure archive/wave-planning
+    behavior.
+- case_id: retail_low_risk_promo
+  tags:
+  - retail
+  - s4hana
+  - hana
+  - low_risk
+  input:
+    company_name: 리테일플러스
+    industry: 유통
+    erp_version: S/4HANA 2023
+    db_type: SAP HANA
+    db_size_gb: 900.0
+    num_users: 650
+    num_custom_programs: 85
+    custom_code_ratio: 14.0
+    modules:
+    - module_name: FI
+      customization_level: low
+    - module_name: MM
+      customization_level: low
+    - module_name: SD
+      customization_level: medium
+    - module_name: WM
+      customization_level: low
+    annual_it_budget_krw: 55.0
+    pain_points: 프로모션 시즌 성능 저하
+    migration_timeline_months: 24
+  expected_score_range:
+    min: 80.9
+    max: 82.5
+  expected_risk_level: Low
+  expected_rule_ids_any:
+  - SCORE_DATABASE_HANA
+  - RISK_LEVEL_LOW_RULE
+  expected_recommendation_ids_any:
+  - REC_PAIN_PERFORMANCE
+  - REC_LOW_RISK_GOVERNANCE
+  - REC_LOW_RISK_KPI_MONITORING
+  notes: Retail low-risk reference that still requires performance tuning around promotion
+    peaks.
+- case_id: retail_peak_volume_short_timeline
+  tags:
+  - retail
+  - sql_server
+  - edge/short_timeline
+  - peak_volume
+  input:
+    company_name: 스타커머스
+    industry: 유통/리테일
+    erp_version: ECC 6.0 EHP7
+    db_type: SQL Server
+    db_size_gb: 4300.0
+    num_users: 1800
+    num_custom_programs: 360
+    custom_code_ratio: 47.0
+    modules:
+    - module_name: FI
+      customization_level: medium
+    - module_name: SD
+      customization_level: high
+    - module_name: MM
+      customization_level: medium
+    - module_name: WM
+      customization_level: high
+    - module_name: HR
+      customization_level: medium
+    - module_name: PS
+      customization_level: low
+    annual_it_budget_krw: 65.0
+    pain_points: 프로모션 응답 지연과 업그레이드 충돌
+    migration_timeline_months: 9
+  expected_score_range:
+    min: 33
+    max: 39
+  expected_risk_level: High
+  expected_rule_ids_any:
+  - RISK_TIMELINE_TOO_SHORT_FOR_CUSTOM
+  - RISK_DB_NOT_HANA
+  - RISK_PAIN_POINTS_DUAL_AXIS
+  expected_recommendation_ids_any:
+  - REC_DB_TO_HANA
+  - REC_TIMELINE_TIGHT_PHASED
+  - REC_PAIN_UPGRADE_COMPAT
+  notes: Retail peak-volume scenario with tight timeline and mixed performance/upgrade
+    pressure.
+- case_id: retail_integration_security
+  tags:
+  - retail
+  - hana
+  - integration
+  - security
+  input:
+    company_name: 옴니채널마트
+    industry: retail
+    erp_version: S/4HANA 2021
+    db_type: SAP HANA
+    db_size_gb: 2100.0
+    num_users: 1400
+    num_custom_programs: 190
+    custom_code_ratio: 26.0
+    modules:
+    - module_name: FI
+      customization_level: medium
+    - module_name: SD
+      customization_level: medium
+    - module_name: WM
+      customization_level: medium
+    - module_name: MM
+      customization_level: low
+    - module_name: HR
+      customization_level: low
+    annual_it_budget_krw: 70.0
+    pain_points: API 연계 오류와 권한 감사 대응 지연
+    migration_timeline_months: 18
+  expected_score_range:
+    min: 69
+    max: 75
+  expected_risk_level: Low
+  expected_rule_ids_any:
+  - SCORE_DATABASE_HANA
+  - RISK_PAIN_POINTS_DUAL_AXIS
+  - RISK_LEVEL_LOW_RULE
+  expected_recommendation_ids_any:
+  - REC_PAIN_INTEGRATION
+  - REC_PAIN_SECURITY
+  - REC_LOW_RISK_GOVERNANCE
+  notes: Retail omnichannel case to preserve integration and access-control recommendations
+    without inflating core risk.
+- case_id: finance_core_banking_ecc
+  tags:
+  - finance
+  - ecc
+  - oracle
+  - regulated
+  input:
+    company_name: 신한코어
+    industry: 금융
+    erp_version: ECC 6.0
+    db_type: Oracle
+    db_size_gb: 1800.0
+    num_users: 1600
+    num_custom_programs: 520
+    custom_code_ratio: 52.0
+    modules:
+    - module_name: FI
+      customization_level: high
+    - module_name: CO
+      customization_level: high
+    - module_name: HR
+      customization_level: medium
+    - module_name: PS
+      customization_level: medium
+    annual_it_budget_krw: 60.0
+    pain_points: 결산 지연과 감사 대응 리드타임 증가
+    migration_timeline_months: 14
+  expected_score_range:
+    min: 28
+    max: 34
+  expected_risk_level: High
+  expected_rule_ids_any:
+  - RISK_DB_NOT_HANA
+  - RISK_HIGH_CUSTOM_MODULES_PRESENT
+  - RISK_PAIN_POINTS_DUAL_AXIS
+  expected_recommendation_ids_any:
+  - REC_DB_TO_HANA
+  - REC_HIGH_CUSTOM_MODULE_BTP
+  - REC_PAIN_FIN_CLOSE
+  - REC_PAIN_SECURITY
+  notes: Finance ECC case with regulated-process pressure and elevated customization
+    in FI/CO.
+- case_id: finance_s4_regulated_low
+  tags:
+  - finance
+  - s4hana
+  - hana
+  - low_risk
+  input:
+    company_name: 안심보험
+    industry: 금융/보험
+    erp_version: S/4HANA 2023
+    db_type: SAP HANA
+    db_size_gb: 1300.0
+    num_users: 1100
+    num_custom_programs: 70
+    custom_code_ratio: 8.0
+    modules:
+    - module_name: FI
+      customization_level: low
+    - module_name: CO
+      customization_level: low
+    - module_name: HR
+      customization_level: low
+    annual_it_budget_krw: 85.0
+    pain_points: 권한 감사 자동화와 보안 증적 체계화 필요
+    migration_timeline_months: 20
+  expected_score_range:
+    min: 84
+    max: 90
+  expected_risk_level: Low
+  expected_rule_ids_any:
+  - SCORE_DATABASE_HANA
+  - RISK_LEVEL_LOW_RULE
+  expected_recommendation_ids_any:
+  - REC_PAIN_SECURITY
+  - REC_LOW_RISK_GOVERNANCE
+  - REC_LOW_RISK_KPI_MONITORING
+  notes: Low-risk finance benchmark that should still emit security/governance follow-up
+    actions.
+- case_id: finance_eos_legacy
+  tags:
+  - finance
+  - legacy
+  - oracle
+  - eos
+  input:
+    company_name: 제일캐피탈
+    industry: banking
+    erp_version: R/3 4.7
+    db_type: Oracle
+    db_size_gb: 2400.0
+    num_users: 900
+    num_custom_programs: 280
+    custom_code_ratio: 34.0
+    modules:
+    - module_name: FI
+      customization_level: high
+    - module_name: CO
+      customization_level: medium
+    - module_name: HR
+      customization_level: medium
+    - module_name: PS
+      customization_level: medium
+    annual_it_budget_krw: 42.0
+    pain_points: 업그레이드 호환성 검증과 보안 감사 대응이 누적
+    migration_timeline_months: 11
+  expected_score_range:
+    min: 31
+    max: 38
+  expected_risk_level: High
+  expected_rule_ids_any:
+  - RISK_ERP_EOS_IMMINENT
+  - RISK_DB_NOT_HANA
+  - RISK_TIMELINE_TOO_SHORT_FOR_CUSTOM
+  expected_recommendation_ids_any:
+  - REC_DB_TO_HANA
+  - REC_PAIN_UPGRADE_COMPAT
+  - REC_PAIN_SECURITY
+  notes: Legacy finance estate for EOS pressure with upgrade and audit pain signals.
+- case_id: base_public_sector_balanced
+  tags:
+  - base
+  - fallback
+  - public_sector
+  - medium_risk
+  input:
+    company_name: 시민서비스청
+    industry: 공공
+    erp_version: ECC 6.0 EHP8
+    db_type: SQL Server
+    db_size_gb: 1500.0
+    num_users: 1000
+    num_custom_programs: 210
+    custom_code_ratio: 29.0
+    modules:
+    - module_name: FI
+      customization_level: medium
+    - module_name: HR
+      customization_level: medium
+    - module_name: PS
+      customization_level: medium
+    annual_it_budget_krw: 58.0
+    pain_points: 결재 배치 지연과 보고서 데이터 정합성 이슈
+    migration_timeline_months: 18
+  expected_score_range:
+    min: 49
+    max: 56
+  expected_risk_level: Medium
+  expected_rule_ids_any:
+  - RISK_DB_NOT_HANA
+  - RISK_PAIN_POINTS_DUAL_AXIS
+  - RISK_LEVEL_MEDIUM_RULE
+  expected_recommendation_ids_any:
+  - REC_DB_TO_HANA
+  - REC_PAIN_PERFORMANCE
+  - REC_PAIN_AI_DATA
+  notes: Base-profile fallback case to verify non-mapped industries still receive
+    sensible medium-risk guidance.
+- case_id: base_greenfield_modern
+  tags:
+  - base
+  - fallback
+  - s4hana
+  - low_risk
+  input:
+    company_name: 헬스플로우
+    industry: Healthcare
+    erp_version: S/4HANA 2023
+    db_type: SAP HANA
+    db_size_gb: 480.0
+    num_users: 420
+    num_custom_programs: 35
+    custom_code_ratio: 6.0
+    modules:
+    - module_name: FI
+      customization_level: low
+    - module_name: MM
+      customization_level: low
+    annual_it_budget_krw: 38.0
+    pain_points: 데이터 기반 운영 리포트 확장
+    migration_timeline_months: 22
+  expected_score_range:
+    min: 86
+    max: 92
+  expected_risk_level: Low
+  expected_rule_ids_any:
+  - SCORE_DATABASE_HANA
+  - RISK_LEVEL_LOW_RULE
+  expected_recommendation_ids_any:
+  - REC_PAIN_AI_DATA
+  - REC_LOW_RISK_GOVERNANCE
+  - REC_LOW_RISK_KPI_MONITORING
+  notes: Base-profile modern reference for unknown industry aliases with healthy S/4
+    posture.
+- case_id: extreme_high_custom_ratio
+  tags:
+  - manufacturing
+  - edge/high_custom_ratio
+  - extreme
+  input:
+    company_name: 커스텀헤비
+    industry: 제조
+    erp_version: ECC 6.0
+    db_type: Oracle
+    db_size_gb: 1200.0
+    num_users: 500
+    num_custom_programs: 900
+    custom_code_ratio: 82.0
+    modules:
+    - module_name: FI
+      customization_level: high
+    - module_name: CO
+      customization_level: high
+    - module_name: MM
+      customization_level: high
+    - module_name: SD
+      customization_level: high
+    annual_it_budget_krw: 35.0
+    pain_points: 성능 저하와 업그레이드 retrofit 난항
+    migration_timeline_months: 12
+  expected_score_range:
+    min: 21.3
+    max: 22.9
+  expected_risk_level: High
+  expected_rule_ids_any:
+  - RISK_CUSTOM_RATIO_HIGH
+  - RISK_HIGH_CUSTOM_MODULES_3PLUS
+  - RISK_SCORE_LT_HIGH_THRESHOLD
+  expected_recommendation_ids_any:
+  - REC_SCORE_LT_30
+  - REC_CUSTOM_RATIO_OVER_40
+  - REC_HIGH_CUSTOM_MODULE_BTP
+  notes: Pure high-custom-ratio edge case to stress score floor behavior and BTP decoupling
+    recommendation coverage.
+- case_id: extreme_huge_db
+  tags:
+  - retail
+  - edge/huge_db
+  - extreme
+  input:
+    company_name: 메가데이터유통
+    industry: 유통
+    erp_version: ECC 6.0
+    db_type: Oracle
+    db_size_gb: 8200.0
+    num_users: 2600
+    num_custom_programs: 310
+    custom_code_ratio: 33.0
+    modules:
+    - module_name: FI
+      customization_level: medium
+    - module_name: SD
+      customization_level: medium
+    - module_name: WM
+      customization_level: medium
+    - module_name: MM
+      customization_level: medium
+    annual_it_budget_krw: 120.0
+    pain_points: 대용량 배치와 인터페이스 병목
+    migration_timeline_months: 20
+  expected_score_range:
+    min: 44
+    max: 50
+  expected_risk_level: High
+  expected_rule_ids_any:
+  - RISK_DB_SIZE_LARGE
+  - RISK_DB_NOT_HANA
+  - RISK_PAIN_POINTS_DUAL_AXIS
+  expected_recommendation_ids_any:
+  - REC_DB_TO_HANA
+  - REC_PAIN_PERFORMANCE
+  - REC_PAIN_INTEGRATION
+  notes: Huge-database retail edge case for archive-first migration guidance.
+- case_id: extreme_short_timeline
+  tags:
+  - finance
+  - edge/short_timeline
+  - extreme
+  input:
+    company_name: 패스트뱅크
+    industry: finance
+    erp_version: ECC 6.0
+    db_type: Oracle
+    db_size_gb: 1600.0
+    num_users: 1500
+    num_custom_programs: 340
+    custom_code_ratio: 31.0
+    modules:
+    - module_name: FI
+      customization_level: high
+    - module_name: CO
+      customization_level: medium
+    - module_name: HR
+      customization_level: medium
+    - module_name: PS
+      customization_level: medium
+    - module_name: MM
+      customization_level: low
+    - module_name: SD
+      customization_level: low
+    annual_it_budget_krw: 52.0
+    pain_points: 결산과 업그레이드 검증 일정이 동시에 촉박
+    migration_timeline_months: 8
+  expected_score_range:
+    min: 44.3
+    max: 45.9
+  expected_risk_level: High
+  expected_rule_ids_any:
+  - RISK_TIMELINE_TOO_SHORT_FOR_CUSTOM
+  - RISK_DB_NOT_HANA
+  - RISK_PAIN_POINTS_DUAL_AXIS
+  expected_recommendation_ids_any:
+  - REC_DB_TO_HANA
+  - REC_TIMELINE_TIGHT_PHASED
+  - REC_PAIN_UPGRADE_COMPAT
+  notes: Finance short-timeline edge case for staged-wave planning pressure.
+- case_id: extreme_multi_axis_pain
+  tags:
+  - base
+  - fallback
+  - edge/multi_axis_pain
+  - extreme
+  input:
+    company_name: 멀티액시스코
+    industry: UnknownVertical
+    erp_version: ECC 6.0
+    db_type: Oracle
+    db_size_gb: 2700.0
+    num_users: 1300
+    num_custom_programs: 260
+    custom_code_ratio: 37.0
+    modules:
+    - module_name: FI
+      customization_level: medium
+    - module_name: CO
+      customization_level: medium
+    - module_name: MM
+      customization_level: medium
+    - module_name: SD
+      customization_level: medium
+    - module_name: HR
+      customization_level: medium
+    annual_it_budget_krw: 44.0
+    pain_points: 결산 지연, 성능 저하, 업그레이드 호환성, API 연계 오류, 데이터 분석 요구, 보안 감사 대응
+    migration_timeline_months: 15
+  expected_score_range:
+    min: 43.5
+    max: 45.1
+  expected_risk_level: High
+  expected_rule_ids_any:
+  - RISK_PAIN_POINTS_MULTI_AXIS
+  - RISK_DB_NOT_HANA
+  - RISK_LEVEL_HIGH_RULE
+  expected_recommendation_ids_any:
+  - REC_PAIN_FIN_CLOSE
+  - REC_PAIN_PERFORMANCE
+  - REC_PAIN_UPGRADE_COMPAT
+  - REC_PAIN_INTEGRATION
+  - REC_PAIN_AI_DATA
+  - REC_PAIN_SECURITY
+  notes: Base fallback edge case with six simultaneous pain-point categories to validate
+    differentiated recommendation coverage.
