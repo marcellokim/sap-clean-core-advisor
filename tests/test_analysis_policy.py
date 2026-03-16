@@ -215,6 +215,38 @@ class AnalysisPolicyTests(unittest.TestCase):
         mock_executor.assert_not_called()
 
     @patch("services.application.analysis_runner.FPDFRenderer.render", return_value=b"%PDF-test")
+    @patch("services.application.analysis_runner.GeminiLLMProvider.__init__", return_value=None)
+    @patch(
+        "services.application.analysis_runner.GeminiLLMProvider.generate_report",
+        return_value=ReportSections(executive_summary="LLM EXEC", detailed_report="LLM DETAIL"),
+    )
+    @patch("services.application.analysis_runner.ChromaRAGProvider.__init__", return_value=None)
+    @patch(
+        "services.application.analysis_runner.ChromaRAGProvider.get_context_bundle",
+        side_effect=RuntimeError("offline"),
+    )
+    def test_hybrid_mode_soft_fails_when_rag_is_offline_but_allowed(
+        self,
+        _mock_rag: object,
+        _mock_rag_init: object,
+        _mock_llm: object,
+        _mock_llm_init: object,
+        _mock_pdf: object,
+    ) -> None:
+        with patch.multiple("config.settings.settings", RAG_OFFLINE_ALLOW=True):
+            result = run_analysis(
+                _sample_input(),
+                policy=AnalysisPolicy(analysis_mode="hybrid", rag_enabled=True, llm_enabled=True),
+            )
+
+        self.assertEqual(result.output.rag_status, "failed")
+        self.assertEqual(result.output.llm_status, "ok")
+        self.assertEqual(result.output.generation_mode, "llm")
+        self.assertTrue(
+            any("ERR_RAG_UNAVAILABLE" in warning for warning in result.output.validation_warnings)
+        )
+
+    @patch("services.application.analysis_runner.FPDFRenderer.render", return_value=b"%PDF-test")
     @patch(
         "services.application.analysis_runner.GLMLLMProvider.generate_report",
         return_value=ReportSections(executive_summary="GLM EXEC", detailed_report="GLM DETAIL"),
