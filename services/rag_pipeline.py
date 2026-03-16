@@ -13,21 +13,13 @@ import warnings
 from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
+from typing import TYPE_CHECKING, Any
 
-from langchain_chroma import Chroma
-from langchain_core.documents import Document
-from langchain_text_splitters import RecursiveCharacterTextSplitter
 from config.settings import settings
 
-try:
-    from langchain_huggingface import HuggingFaceEmbeddings
-except ImportError:  # pragma: no cover - compatibility fallback
-    warnings.filterwarnings(
-        "ignore",
-        message="The class `HuggingFaceEmbeddings` was deprecated in LangChain",
-        category=Warning,
-    )
-    from langchain_community.embeddings import HuggingFaceEmbeddings
+if TYPE_CHECKING:
+    from langchain_chroma import Chroma
+    from langchain_core.documents import Document
 
 # ────────────────────────────────────────────────────────────────────
 # 상수
@@ -41,7 +33,7 @@ COLLECTION_NAME = "sap_knowledge_base"
 TOP_K = 5
 DEFAULT_MAX_CONTEXT_CHARS = 6000
 
-_CACHED_VECTOR_STORE: Chroma | None = None
+_CACHED_VECTOR_STORE: Any = None
 _CACHED_DOCS_HASH: str | None = None
 
 
@@ -59,8 +51,18 @@ def _get_max_context_chars() -> int:
 
 
 @lru_cache(maxsize=1)
-def _get_embedding_function() -> HuggingFaceEmbeddings:
+def _get_embedding_function():
     """다국어 E5 임베딩 함수를 반환."""
+    try:
+        from langchain_huggingface import HuggingFaceEmbeddings
+    except ImportError:  # pragma: no cover - compatibility fallback
+        warnings.filterwarnings(
+            "ignore",
+            message="The class `HuggingFaceEmbeddings` was deprecated in LangChain",
+            category=Warning,
+        )
+        from langchain_community.embeddings import HuggingFaceEmbeddings
+
     return HuggingFaceEmbeddings(
         model_name=EMBEDDING_MODEL,
         model_kwargs={"device": "cpu"},
@@ -68,8 +70,31 @@ def _get_embedding_function() -> HuggingFaceEmbeddings:
     )
 
 
-def _load_markdown_docs() -> list[Document]:
+def _document_cls():
+    from langchain_core.documents import Document
+
+    return Document
+
+
+def _chroma_cls():
+    from langchain_chroma import Chroma
+
+    return Chroma
+
+
+def _chunk_splitter():
+    from langchain_text_splitters import RecursiveCharacterTextSplitter
+
+    return RecursiveCharacterTextSplitter(
+        chunk_size=CHUNK_SIZE,
+        chunk_overlap=CHUNK_OVERLAP,
+        separators=["\n## ", "\n### ", "\n\n", "\n", " "],
+    )
+
+
+def _load_markdown_docs() -> list["Document"]:
     """data/ 폴더의 Markdown 문서들을 LangChain Document로 로딩."""
+    Document = _document_cls()
     docs: list[Document] = []
     for md_file in sorted(DATA_DIR.glob("*.md")):
         text = md_file.read_text(encoding="utf-8")
@@ -84,7 +109,7 @@ def _load_markdown_docs() -> list[Document]:
     return docs
 
 
-def _compute_docs_hash(docs: list[Document]) -> str:
+def _compute_docs_hash(docs: list["Document"]) -> str:
     """문서 내용의 해시를 계산하여 변경 감지에 활용."""
     hasher = hashlib.md5()
     for doc in docs:
@@ -100,7 +125,7 @@ def _needs_rebuild(docs_hash: str) -> bool:
     return hash_file.read_text().strip() != docs_hash
 
 
-def build_vector_store(force: bool = False) -> Chroma:
+def build_vector_store(force: bool = False):
     """벡터 스토어를 구축하거나 기존 것을 로드.
 
     Args:
@@ -114,6 +139,7 @@ def build_vector_store(force: bool = False) -> Chroma:
     raw_docs = _load_markdown_docs()
     docs_hash = _compute_docs_hash(raw_docs)
     embeddings = _get_embedding_function()
+    Chroma = _chroma_cls()
 
     if not force and _CACHED_VECTOR_STORE is not None and _CACHED_DOCS_HASH == docs_hash:
         return _CACHED_VECTOR_STORE
@@ -129,11 +155,7 @@ def build_vector_store(force: bool = False) -> Chroma:
         return _CACHED_VECTOR_STORE
 
     # 청크 분할
-    splitter = RecursiveCharacterTextSplitter(
-        chunk_size=CHUNK_SIZE,
-        chunk_overlap=CHUNK_OVERLAP,
-        separators=["\n## ", "\n### ", "\n\n", "\n", " "],
-    )
+    splitter = _chunk_splitter()
     chunks = splitter.split_documents(raw_docs)
 
     # E5 모델은 passage: prefix가 필요
@@ -158,13 +180,13 @@ def build_vector_store(force: bool = False) -> Chroma:
     return vector_store
 
 
-def _search_with_store(vector_store: Chroma, query: str, top_k: int) -> list[Document]:
+def _search_with_store(vector_store, query: str, top_k: int) -> list["Document"]:
     """이미 로드된 벡터 스토어에서 쿼리를 검색."""
     prefixed_query = f"query: {query}"
     return vector_store.similarity_search(prefixed_query, k=top_k)
 
 
-def search(query: str, top_k: int = TOP_K) -> list[Document]:
+def search(query: str, top_k: int = TOP_K) -> list["Document"]:
     """쿼리와 관련된 SAP 문서 청크를 검색.
 
     E5 모델 규약에 따라 query에 'query: ' prefix를 추가합니다.
@@ -207,7 +229,7 @@ def get_context_bundle_for_input(
     ]
 
     vector_store = build_vector_store()
-    all_chunks: list[Document] = []
+    all_chunks: list["Document"] = []
     seen_contents: set[str] = set()
 
     for q in queries:

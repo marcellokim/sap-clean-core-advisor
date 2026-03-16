@@ -42,12 +42,8 @@ from services.error_codes import (
     ERR_PROVIDER_NOT_SUPPORTED,
     ERR_RAG_UNAVAILABLE,
 )
-from services.infrastructure.llm.gemini_provider import GeminiLLMProvider
-from services.infrastructure.llm.glm_provider import GLMLLMProvider
 from services.infrastructure.pdf.fpdf_renderer import FPDFRenderer  # compatibility for test patch targets
-from services.infrastructure.rag.chroma_provider import ChromaRAGProvider
 from services.llm_provider import LLMProvider, LLMProviderError, LLMUsage, ReportSections
-from services.rag_pipeline import RAGContextBundle
 from services.ruleset_loader import resolve_ruleset_profile
 from config.settings import settings
 
@@ -92,6 +88,64 @@ class AnalysisResult:
     pdf_bytes: bytes | None
     pdf_error_code: str | None
     pdf_error_message: str | None
+
+
+@dataclass(frozen=True)
+class _DefaultRAGContextBundle:
+    """Lightweight default RAG bundle used before lazy provider initialization."""
+
+    context: str
+    sources: list[str]
+    chunk_count: int
+
+
+class GeminiLLMProvider:
+    """Lazy Gemini provider proxy that preserves existing patch targets."""
+
+    provider_name = "gemini"
+
+    def __init__(self) -> None:
+        from services.infrastructure.llm.gemini_provider import GeminiLLMProvider as Impl
+
+        self._impl = Impl()
+
+    def generate_report(self, payload):
+        return self._impl.generate_report(payload)
+
+
+class GLMLLMProvider:
+    """Lazy GLM provider proxy that preserves existing patch targets."""
+
+    provider_name = "glm"
+
+    def __init__(self) -> None:
+        from services.infrastructure.llm.glm_provider import GLMLLMProvider as Impl
+
+        self._impl = Impl()
+
+    def generate_report(self, payload):
+        return self._impl.generate_report(payload)
+
+
+class ChromaRAGProvider:
+    """Lazy RAG provider proxy that avoids heavy imports on module load."""
+
+    def __init__(self) -> None:
+        from services.infrastructure.rag.chroma_provider import ChromaRAGProvider as Impl
+
+        self._impl = Impl()
+
+    def get_context_bundle(
+        self,
+        erp_version: str,
+        modules: list[str],
+        pain_points: str,
+    ):
+        return self._impl.get_context_bundle(
+            erp_version=erp_version,
+            modules=modules,
+            pain_points=pain_points,
+        )
 
 
 def _elapsed_ms(start_ts: float) -> int:
@@ -184,7 +238,7 @@ def run_analysis(
     recommendations = [trace.text for trace in recommendation_traces]
     stage_metrics_ms["calc_ms"] = _elapsed_ms(calc_start)
 
-    rag_bundle = RAGContextBundle(context="", sources=[], chunk_count=0)
+    rag_bundle = _DefaultRAGContextBundle(context="", sources=[], chunk_count=0)
     rag_context = ""
     rag_status: RAGStatus = "skipped"
     rag_error_code: str | None = None

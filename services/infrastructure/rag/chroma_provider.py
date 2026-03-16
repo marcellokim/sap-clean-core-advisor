@@ -2,17 +2,47 @@
 
 from __future__ import annotations
 
-import streamlit as st
-from langchain_chroma import Chroma
+from functools import lru_cache
+from typing import TYPE_CHECKING
 
 from services.infrastructure.compat_telemetry import mark_compat_usage
-from services.rag_pipeline import RAGContextBundle, get_context_bundle_for_input, build_vector_store
+
+if TYPE_CHECKING:
+    from langchain_chroma import Chroma
+    from services.rag_pipeline import RAGContextBundle
 
 
-@st.cache_resource(show_spinner="Initializing Vector DB...")
-def get_cached_vector_store() -> Chroma:
+@lru_cache(maxsize=1)
+def _get_cached_vector_store_loader():
+    import streamlit as st
+
+    @st.cache_resource(show_spinner="Initializing Vector DB...")
+    def _load_vector_store() -> "Chroma":
+        from services.rag_pipeline import build_vector_store
+
+        return build_vector_store()
+
+    return _load_vector_store
+
+
+def get_cached_vector_store() -> "Chroma":
     """Streamlit cached wrapper around ChromaDB initialization."""
-    return build_vector_store()
+    return _get_cached_vector_store_loader()()
+
+
+def get_context_bundle_for_input(
+    erp_version: str,
+    modules: list[str],
+    pain_points: str,
+):
+    """Lazy proxy preserved for existing patch targets/tests."""
+    from services.rag_pipeline import get_context_bundle_for_input as impl
+
+    return impl(
+        erp_version=erp_version,
+        modules=modules,
+        pain_points=pain_points,
+    )
 
 
 class ChromaRAGProvider:
@@ -31,11 +61,12 @@ class ChromaRAGProvider:
         erp_version: str,
         modules: list[str],
         pain_points: str,
-    ) -> RAGContextBundle:
+    ) -> "RAGContextBundle":
         mark_compat_usage(
             contract="services.infrastructure.rag.chroma_provider.ChromaRAGProvider.get_context_bundle",
             replacement="services.rag_pipeline.get_context_bundle_for_input",
         )
+
         return get_context_bundle_for_input(
             erp_version=erp_version,
             modules=modules,

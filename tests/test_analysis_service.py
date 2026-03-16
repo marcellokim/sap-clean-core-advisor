@@ -8,7 +8,7 @@ import unittest
 from unittest.mock import patch
 
 from models.schemas import CustomerInput, ModuleInfo
-from services.analysis_service import analyze_customer_input
+from services.analysis_service import AnalysisPolicy, analyze_customer_input, analyze_customer_input_cached
 from services.error_codes import ERR_LLM_RATE_LIMIT
 from services.llm_provider import LLMProviderError, ReportSections
 from services.rag_pipeline import RAGContextBundle
@@ -106,6 +106,101 @@ class AnalysisServiceTests(unittest.TestCase):
         self.assertIn("total_ms", result.output.stage_metrics_ms)
         self.assertTrue(result.output.executive_summary)
         self.assertIsNotNone(result.pdf_bytes)
+
+    def test_disable_cache_bypasses_cached_wrapper(self) -> None:
+        customer_input = _sample_input()
+        expected_result = object()
+        env_policy = AnalysisPolicy(
+            analysis_mode="hybrid",
+            rag_enabled=True,
+            llm_enabled=True,
+            timeout_ms=321,
+        )
+
+        with patch("services.analysis_service.AnalysisPolicy.from_env", return_value=env_policy) as mock_from_env:
+            with patch("services.analysis_service.analyze_customer_input_cached") as mock_cached:
+                with patch("services.analysis_service.run_analysis", return_value=expected_result) as mock_run_analysis:
+                    result = analyze_customer_input(customer_input, lang="en")
+
+        self.assertIs(result, expected_result)
+        mock_from_env.assert_called_once_with()
+        mock_cached.assert_not_called()
+        mock_run_analysis.assert_called_once_with(customer_input, policy=env_policy, lang="en")
+
+    def test_cache_enabled_serializes_input_and_policy_for_cached_wrapper(self) -> None:
+        customer_input = _sample_input()
+        expected_result = object()
+        env_policy = AnalysisPolicy(
+            analysis_mode="hybrid",
+            rag_enabled=False,
+            llm_enabled=True,
+            timeout_ms=123,
+        )
+        os.environ.pop("DISABLE_CACHE", None)
+
+        with patch("services.analysis_service.AnalysisPolicy.from_env", return_value=env_policy) as mock_from_env:
+            with patch("services.analysis_service.analyze_customer_input_cached", return_value=expected_result) as mock_cached:
+                result = analyze_customer_input(customer_input, lang="en")
+
+        self.assertIs(result, expected_result)
+        mock_from_env.assert_called_once_with()
+        mock_cached.assert_called_once_with(
+            customer_input.model_dump(),
+            lang="en",
+            policy_dict={
+                "analysis_mode": "hybrid",
+                "rag_enabled": False,
+                "llm_enabled": True,
+                "timeout_ms": 123,
+            },
+        )
+
+    def test_cached_wrapper_rehydrates_customer_input_and_policy(self) -> None:
+        expected_result = object()
+        customer_input_dict = _sample_input().model_dump()
+        policy_dict = {
+            "analysis_mode": "hybrid",
+            "rag_enabled": False,
+            "llm_enabled": True,
+            "timeout_ms": 99,
+        }
+
+        with patch("services.analysis_service.run_analysis", return_value=expected_result) as mock_run_analysis:
+            result = analyze_customer_input_cached(customer_input_dict, lang="en", policy_dict=policy_dict)
+
+        self.assertIs(result, expected_result)
+        called_customer_input = mock_run_analysis.call_args.args[0]
+        self.assertIsInstance(called_customer_input, CustomerInput)
+        self.assertEqual(called_customer_input.company_name, customer_input_dict["company_name"])
+        self.assertEqual(called_customer_input.modules[0].module_name, "FI")
+        self.assertEqual(
+            mock_run_analysis.call_args.kwargs["policy"],
+            AnalysisPolicy(
+                analysis_mode="hybrid",
+                rag_enabled=False,
+                llm_enabled=True,
+                timeout_ms=99,
+            ),
+        )
+        self.assertEqual(mock_run_analysis.call_args.kwargs["lang"], "en")
+
+    def test_cached_wrapper_uses_env_policy_when_policy_dict_missing(self) -> None:
+        expected_result = object()
+        env_policy = AnalysisPolicy(
+            analysis_mode="llm_only",
+            rag_enabled=True,
+            llm_enabled=True,
+            timeout_ms=77,
+        )
+
+        with patch("services.analysis_service.AnalysisPolicy.from_env", return_value=env_policy) as mock_from_env:
+            with patch("services.analysis_service.run_analysis", return_value=expected_result) as mock_run_analysis:
+                result = analyze_customer_input_cached(_sample_input().model_dump(), lang="en")
+
+        self.assertIs(result, expected_result)
+        mock_from_env.assert_called_once_with()
+        self.assertEqual(mock_run_analysis.call_args.kwargs["policy"], env_policy)
+        self.assertEqual(mock_run_analysis.call_args.kwargs["lang"], "en")
 
     @patch("services.application.analysis_runner.FPDFRenderer.render", return_value=b"%PDF-test")
     @patch("services.application.analysis_runner.GeminiLLMProvider.__init__", return_value=None)

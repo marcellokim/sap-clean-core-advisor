@@ -6,11 +6,23 @@ import streamlit as st
 
 from config.settings import settings
 from models.schemas import CustomerInput
-from services.analysis_service import analyze_customer_input
-from ui.dashboard import render_dashboard
 from ui.input_form import render_input_form
 from ui.locales import _
 from ui.policy import get_locked_analysis_policy
+
+
+def analyze_customer_input(*args, **kwargs):
+    """Lazy compatibility import for the analysis entrypoint."""
+    from services.analysis_service import analyze_customer_input as impl
+
+    return impl(*args, **kwargs)
+
+
+def render_dashboard(*args, **kwargs):
+    """Lazy dashboard import to keep the default app import path slim."""
+    from ui.dashboard import render_dashboard as impl
+
+    return impl(*args, **kwargs)
 
 
 def _current_llm_provider() -> str:
