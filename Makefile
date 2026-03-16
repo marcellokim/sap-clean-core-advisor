@@ -1,8 +1,10 @@
 PYTHON ?= ./.venv/bin/python
 INDUSTRY ?= manufacturing
 COMPAT_TELEMETRY_LOG_PATH ?= artifacts/telemetry/compat_usage.jsonl
+IMPORT_BUDGET_REPEATS ?= 5
+IMPORT_BUDGET_TARGETS ?= app analysis_runner
 
-.PHONY: run test test-compat check-import-cycles verify-sources verify-citations verify-report-consistency verify-report-preconfirm verify-prune-hygiene report-compat-telemetry verify-safe-lane-promotion verify-safe-lane-promotion-nonstrict verify-safe-lane-promotion-strict verify-safe-lane-promotion-core verify-release-readiness qa-report
+.PHONY: run test test-compat check-import-cycles measure-import-budget verify-sources verify-citations verify-report-consistency verify-report-preconfirm verify-prune-hygiene report-compat-telemetry verify-safe-lane-promotion verify-safe-lane-promotion-nonstrict verify-safe-lane-promotion-strict verify-safe-lane-promotion-core verify-release-readiness qa-report
 
 run:
 	uv run streamlit run app.py
@@ -15,6 +17,9 @@ test-compat:
 
 check-import-cycles:
 	python3 scripts/check_import_cycles.py services app.py
+
+measure-import-budget:
+	$(PYTHON) tools/measure_import_budget.py --repeats $(IMPORT_BUDGET_REPEATS) --targets $(IMPORT_BUDGET_TARGETS) --output artifacts/perf/import_budget.json --modules-output artifacts/perf/import_modules.json --json
 
 verify-sources:
 	$(PYTHON) tools/verify_sources.py --skip-http --json

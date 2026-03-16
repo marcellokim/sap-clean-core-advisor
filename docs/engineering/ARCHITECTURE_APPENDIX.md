@@ -58,7 +58,8 @@ Input Form
 2. industry
 3. base
 
-보정(calibration)/백테스트 도구는 현재 브랜치에서 제거되었고,
+legacy `backtest`/`calibrate` 타겟명은 prune hygiene 대상이지만,
+benchmark-driven calibration harness 자체(`tests/fixtures/demo_benchmark.yaml`, `tools/evaluate_demo_benchmark.py`)는 유지됩니다.
 운영 검증은 `make qa-report`, `make verify-safe-lane-promotion`, `make verify-release-readiness`를 기준으로 수행합니다.
 
 ## 5. Evidence Ledger
@@ -138,6 +139,7 @@ COMPAT_DEPRECATION_REMOVE_AFTER=2026-06-30
 ```bash
 make test
 make test-compat
+make measure-import-budget
 make verify-sources
 make verify-prune-hygiene
 make report-compat-telemetry
@@ -145,3 +147,6 @@ make verify-safe-lane-promotion
 make verify-release-readiness
 make qa-report
 ```
+
+- `make measure-import-budget`는 advisory/additive perf 검증 경로이며,
+  `artifacts/perf/import_budget.json`(timing)과 `artifacts/perf/import_modules.json`(module snapshot)을 생성합니다.

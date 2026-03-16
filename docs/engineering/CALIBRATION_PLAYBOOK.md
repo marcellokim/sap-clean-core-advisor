@@ -22,6 +22,8 @@
   - `tests/test_evaluate_demo_benchmark.py`
 - Current promotion gate:
   - benchmark score / risk / recommendation coverage **100% 유지**
+- Scope note:
+  - `make verify-prune-hygiene`는 legacy `backtest`/`calibrate` 명칭 재유입만 막으며, benchmark fixture/harness 자체는 계속 유지된다
 - Latest P4 working stance:
   - P3의 “추가 aggressive rescaling 보류” 결론은 유지
   - 먼저 benchmark를 sharper하게 만들어 closest pair / headroom drift를 더 일찍 잡는다

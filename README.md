@@ -155,7 +155,9 @@ tests/                             # unit tests
 tests/fixtures/demo_benchmark.yaml # deterministic benchmark cases for calibration
 tests/test_calibration_regressions.py # calibrated score/risk/recommendation regression guards
 artifacts/calibration/             # benchmark evaluation JSON/Markdown outputs
+artifacts/perf/                    # repeated import-budget timing/module snapshots
 tools/evaluate_demo_benchmark.py   # benchmark fixture evaluation + artifact generation
+tools/measure_import_budget.py     # repeated subprocess import-budget capture
 tools/verify_sources.py            # source catalog validator
 tools/snapshot_sources.py          # source snapshot/hash refresh
 scripts/check_import_cycles.py     # internal import cycle checker
@@ -253,6 +255,8 @@ uv run streamlit run app.py
 - Promotion gate:
   - promote a calibration candidate only when score/risk/recommendation benchmark coverage stays at 100%
   - prefer targeted differentiation gains in under-colliding profiles and stop before additional aggressive global rescaling
+- Note:
+  - `make verify-prune-hygiene`가 막는 것은 legacy `backtest`/`calibrate` target 명칭 재유입이며, 위 benchmark fixture/harness 자체는 계속 canonical 경로로 유지됩니다.
 - Operator guide: `docs/engineering/CALIBRATION_PLAYBOOK.md`
 - Recommended benchmark verification loop:
 
@@ -270,6 +274,7 @@ make verify-sources
 make test
 make test-compat
 make check-import-cycles
+make measure-import-budget
 make verify-sources
 make verify-report-preconfirm
 make verify-prune-hygiene
@@ -283,6 +288,7 @@ make qa-report
 - `make test`: 전체 unit test 실행
 - `make test-compat`: `analysis_service` / `fpdf_renderer` / `chroma_provider` 호환성 계약 테스트 실행
 - `make check-import-cycles`: `services`/`app.py` 내부 import cycle 점검
+- `make measure-import-budget`: `app` / `analysis_runner` 기본 import 경로를 반복 subprocess로 측정하고 `artifacts/perf/import_budget.json`, `artifacts/perf/import_modules.json`에 timing/module snapshot을 기록하는 additive perf check
 - `make verify-sources`: 출처 카탈로그 검증
 - `make verify-report-preconfirm`: 인용 커버리지 + 수치/날짜 정합성 사전검증
 - `make verify-prune-hygiene`: fast-lane 삭제 대상/deprecated target(backtest/calibrate) 재유입 방지
@@ -302,15 +308,20 @@ make verify-safe-lane-promotion-strict
 테스트/검증 커맨드는 synthetic 호출로 telemetry가 오염되지 않도록 기본적으로
 `COMPAT_TELEMETRY_ENABLE=false` 및 `COMPAT_DEPRECATION_WARN=false`로 실행됩니다.
 
+Perf 측정은 기본 QA gate를 약화시키지 않는 advisory/additive 경로입니다.  
+PR/릴리즈 검증 시에는 기능 게이트(`make test`, `make verify-sources`, 필요 시 `make test-compat`)를 먼저 통과시킨 뒤
+`make measure-import-budget`로 import baseline/post-change artifact를 남기세요.
+
 출처 스냅샷 갱신:
 ```bash
 ./.venv/bin/python tools/snapshot_sources.py --offline --update-catalog --json
 ```
 
-로컬 검증 스냅샷(2026-03-10):
-- `make test` → 59 tests, all pass
+로컬 검증 스냅샷(2026-03-17):
+- `make test` → 87 tests, all pass
 - `make test-compat` → 10 tests, all pass
 - `make check-import-cycles` → No internal import cycles detected
+- `make measure-import-budget` → `app` median `215.336ms`, `analysis_runner` median `171.051ms`, heavy modules `0 / 0`
 - `make verify-sources` → `[]`
 - `make verify-report-preconfirm` → PASS
 - `make verify-prune-hygiene` → `[]`
@@ -318,7 +329,8 @@ make verify-safe-lane-promotion-strict
 - `make verify-safe-lane-promotion` → PASS (nonstrict mode)
 - `make verify-safe-lane-promotion-strict` → telemetry log가 없거나 비어있거나 invalid row가 있으면 **의도적으로 FAIL**
 - `make verify-release-readiness` → strict safe-lane 조건 충족 시 PASS (`artifacts/qa/release_readiness.json` 생성)
-- Refactor KPI snapshot: `analysis_runner.py` 439 lines / `app.py` 196 lines
+- First-use RAG warmup probe (`2026-03-17`) → `ChromaRAGProvider()` first call `8771.721ms`, second call `0.172ms`; startup warmup is kept opt-in via `RAG_WARMUP_ON_START`
+- Refactor KPI snapshot: `analysis_runner.py` 493 lines / `app.py` 85 lines
 - Microbench(모킹 LLM, 150회): timeout=0 경로 p95 `0.139ms`, timeout=1000 경로 p95 `0.198ms`
 
 예시(결정론 샘플 케이스 기준 기대값):
