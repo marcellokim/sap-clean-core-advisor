@@ -256,7 +256,7 @@ uv run streamlit run app.py
   - promote a calibration candidate only when score/risk/recommendation benchmark coverage stays at 100%
   - prefer targeted differentiation gains in under-colliding profiles and stop before additional aggressive global rescaling
 - Note:
-  - `make verify-prune-hygiene`가 막는 것은 legacy `backtest`/`calibrate` target 명칭 재유입이며, 위 benchmark fixture/harness 자체는 계속 canonical 경로로 유지됩니다.
+  - `make verify-prune-hygiene`가 막는 것은 legacy benchmark/tuning target alias 재유입이며, 위 benchmark fixture/harness 자체는 계속 canonical 경로로 유지됩니다.
 - Operator guide: `docs/engineering/CALIBRATION_PLAYBOOK.md`
 - Recommended benchmark verification loop:
 

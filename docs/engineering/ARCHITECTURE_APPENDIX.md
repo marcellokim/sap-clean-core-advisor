@@ -58,7 +58,7 @@ Input Form
 2. industry
 3. base
 
-legacy `backtest`/`calibrate` 타겟명은 prune hygiene 대상이지만,
+legacy benchmark/tuning target alias는 prune hygiene 대상이지만,
 benchmark-driven calibration harness 자체(`tests/fixtures/demo_benchmark.yaml`, `tools/evaluate_demo_benchmark.py`)는 유지됩니다.
 운영 검증은 `make qa-report`, `make verify-safe-lane-promotion`, `make verify-release-readiness`를 기준으로 수행합니다.
 
