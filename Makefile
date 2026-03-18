@@ -4,10 +4,16 @@ COMPAT_TELEMETRY_LOG_PATH ?= artifacts/telemetry/compat_usage.jsonl
 IMPORT_BUDGET_REPEATS ?= 5
 IMPORT_BUDGET_TARGETS ?= app analysis_runner
 
-.PHONY: run test test-compat check-import-cycles measure-import-budget verify-sources verify-citations verify-report-consistency verify-report-preconfirm verify-prune-hygiene report-compat-telemetry verify-safe-lane-promotion verify-safe-lane-promotion-nonstrict verify-safe-lane-promotion-strict verify-safe-lane-promotion-core verify-release-readiness qa-report
+.PHONY: run ci test test-compat check-import-cycles measure-import-budget verify-sources verify-citations verify-report-consistency verify-report-preconfirm verify-prune-hygiene report-compat-telemetry verify-safe-lane-promotion verify-safe-lane-promotion-nonstrict verify-safe-lane-promotion-strict verify-safe-lane-promotion-core verify-release-readiness qa-report
 
 run:
 	uv run streamlit run app.py
+
+ci:
+	$(MAKE) qa-report
+	$(MAKE) check-import-cycles
+	$(MAKE) verify-safe-lane-promotion
+	@echo "[ok] ci parity gate completed."
 
 test:
 	COMPAT_TELEMETRY_ENABLE=false COMPAT_DEPRECATION_WARN=false $(PYTHON) -m unittest discover -s tests -v

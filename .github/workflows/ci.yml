@@ -25,11 +25,8 @@ jobs:
       - name: Sync dependencies
         run: uv sync --frozen
 
-      - name: Run report QA gate
-        run: make qa-report
-
-      - name: Run safe-lane promotion gate
-        run: make verify-safe-lane-promotion
+      - name: Run CI parity gate
+        run: make ci
 
       - name: Run safe-lane promotion strict gate (when telemetry log is provisioned)
         if: ${{ hashFiles('artifacts/telemetry/compat_usage.jsonl') != '' }}

@@ -40,6 +40,11 @@ SAP legacy landscape를 입력하면 **Clean Core Score / TCO / Risk**를 계산
 - 체크리스트 기반으로 Joule 도입 준비도 Gap 분석 결과 생성
 - 리스크 레벨(High/Medium/Low) 및 액션 제시
 
+### C. Redesign된 워크스페이스 셸
+- SAP 로고 기반 페이지 아이콘과 non-emoji 탭 네비게이션
+- KO/EN 전환이 가능한 공통 스타일 시스템과 executive-ready empty/result surface
+- 사이드바에서 언어별 EA Support Pack ZIP 다운로드
+
 ---
 
 ## 3) Pipeline (Runtime Architecture)
@@ -132,6 +137,11 @@ LLM 결과 품질을 안정화하기 위해 아래 보호 장치를 사용합니
 - PDF 내보내기
 - EA/Workshop/Ops/Joule 실무 템플릿 제공(`docs/*`)
 
+### 6) Bilingual Streamlit Workspace
+- `ui/styles.py`에서 typography/theme token/selector inventory를 중앙 관리
+- `render_shell_header`, `render_section_heading`, empty-state 패널로 Clean Core / Joule surface를 일관되게 렌더링
+- 결과 대시보드/체크리스트 UI 회귀를 `tests/test_ui_redesign_helpers.py`, `tests/test_ui_results_redesign.py`, `tests/test_dashboard_regressions.py`로 고정
+
 ---
 
 ## 7) Project Structure
@@ -150,8 +160,16 @@ services/
   pain_point_signals.py            # deterministic pain-point keyword tagging
   domain/                          # recommendation/evidence/validation
   infrastructure/                  # llm/rag/pdf adapters + compat telemetry
+ui/dashboard.py                    # KPI/result charts + evidence/result panels
+ui/joule_checklist.py              # localized Joule checklist UI
 ui/sidebar.py                      # sidebar/support-pack rendering
+ui/styles.py                       # shared shell tokens/header/empty-state helpers
+ui/tabs/                           # Clean Core / Joule tab entrypoints
 tests/                             # unit tests
+tests/test_app_tab_wiring.py       # KO/EN empty/loading/error/result UI regression guards
+tests/test_dashboard_regressions.py # Plotly chart trace/name/order regression guards
+tests/test_ui_redesign_helpers.py  # shell copy/CSS/navigation redesign regression guards
+tests/test_ui_results_redesign.py  # dashboard/Joule result-surface redesign guards
 tests/fixtures/demo_benchmark.yaml # deterministic benchmark cases for calibration
 tests/test_calibration_regressions.py # calibrated score/risk/recommendation regression guards
 artifacts/calibration/             # benchmark evaluation JSON/Markdown outputs
@@ -271,6 +289,7 @@ make verify-sources
 ## 11) Reproducibility & Quality Checks
 
 ```bash
+make ci
 make test
 make test-compat
 make check-import-cycles
@@ -285,7 +304,9 @@ make verify-release-readiness
 make qa-report
 ```
 
+- `make ci`: GitHub Actions parity target (`make qa-report` + `make check-import-cycles` + `make verify-safe-lane-promotion`)
 - `make test`: 전체 unit test 실행
+- `uv run python -m unittest -q tests.test_app_tab_wiring tests.test_dashboard_regressions`: Streamlit UI 회귀 스모크( KO/EN empty/loading/error/result + Plotly chart semantics )를 빠르게 재확인
 - `make test-compat`: `analysis_service` / `fpdf_renderer` / `chroma_provider` 호환성 계약 테스트 실행
 - `make check-import-cycles`: `services`/`app.py` 내부 import cycle 점검
 - `make measure-import-budget`: `app` / `analysis_runner` 기본 import 경로를 반복 subprocess로 측정하고 `artifacts/perf/import_budget.json`, `artifacts/perf/import_modules.json`에 timing/module snapshot을 기록하는 additive perf check
@@ -297,7 +318,7 @@ make qa-report
 - `make verify-safe-lane-promotion-strict`: `verify-safe-lane-promotion` + telemetry 로그 실재 여부(`--require-log`) + 로그 유효성(`--fail-on-invalid-rows`)까지 검증하는 릴리즈 전 필수 게이트
 - `make verify-release-readiness`: 최종 릴리즈 체크리스트(`make qa-report` 3회 연속 + `test-compat` + import cycle + safe-lane **strict** 게이트) 실행 및 리포트 저장(`artifacts/qa/release_readiness.json`)
 - `make qa-report`: 테스트 + 출처 검증 + pre-confirm + prune hygiene 전체 게이트
-- CI(`.github/workflows/ci.yml`)에서는 `make qa-report` + `make verify-safe-lane-promotion`를 기본 게이트로 실행하며, telemetry 로그 artifact가 있을 때만 strict 게이트를 추가 실행합니다. 릴리즈 직전에는 `make verify-safe-lane-promotion-strict`를 필수 실행하세요.
+- CI(`.github/workflows/ci.yml`)에서는 기본적으로 `make ci`를 실행해 README와 동일한 검증 순서를 사용하며, telemetry 로그 artifact가 있을 때만 strict 게이트(`make verify-safe-lane-promotion-strict`)를 추가 실행합니다. 릴리즈 직전에는 strict 게이트를 필수 실행하세요.
 
 릴리즈 전 권장 순서(필수):
 ```bash
@@ -317,7 +338,13 @@ PR/릴리즈 검증 시에는 기능 게이트(`make test`, `make verify-sources
 ./.venv/bin/python tools/snapshot_sources.py --offline --update-catalog --json
 ```
 
-로컬 검증 스냅샷(2026-03-17):
+문서/CI 동기화 스팟체크(2026-03-18):
+- `make test` → 103 tests, all pass
+- `make verify-sources` → `[]`
+- `make check-import-cycles` → No internal import cycles detected
+- `make ci` → PASS
+
+이전 확장 검증 스냅샷(2026-03-17, perf/release baseline):
 - `make test` → 87 tests, all pass
 - `make test-compat` → 10 tests, all pass
 - `make check-import-cycles` → No internal import cycles detected
