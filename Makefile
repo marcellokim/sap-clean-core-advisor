@@ -3,8 +3,9 @@ INDUSTRY ?= manufacturing
 COMPAT_TELEMETRY_LOG_PATH ?= artifacts/telemetry/compat_usage.jsonl
 IMPORT_BUDGET_REPEATS ?= 5
 IMPORT_BUDGET_TARGETS ?= app analysis_runner
+SOURCE_SNAPSHOT_DATE ?= $(shell date +%F)
 
-.PHONY: run ci test test-compat check-import-cycles measure-import-budget verify-sources verify-citations verify-report-consistency verify-report-preconfirm verify-prune-hygiene report-compat-telemetry verify-safe-lane-promotion verify-safe-lane-promotion-nonstrict verify-safe-lane-promotion-strict verify-safe-lane-promotion-core verify-release-readiness qa-report
+.PHONY: run ci test test-compat check-import-cycles measure-import-budget verify-sources refresh-sources verify-citations verify-report-consistency verify-report-preconfirm verify-prune-hygiene report-compat-telemetry verify-safe-lane-promotion verify-safe-lane-promotion-nonstrict verify-safe-lane-promotion-strict verify-safe-lane-promotion-core verify-release-readiness qa-report
 
 run:
 	uv run streamlit run app.py
@@ -29,6 +30,10 @@ measure-import-budget:
 
 verify-sources:
 	$(PYTHON) tools/verify_sources.py --skip-http --json
+
+refresh-sources:
+	$(PYTHON) tools/snapshot_sources.py --date $(SOURCE_SNAPSHOT_DATE) --offline --update-catalog --json
+	$(MAKE) verify-sources
 
 verify-citations:
 	COMPAT_TELEMETRY_ENABLE=false COMPAT_DEPRECATION_WARN=false $(PYTHON) tools/verify_citations.py --json

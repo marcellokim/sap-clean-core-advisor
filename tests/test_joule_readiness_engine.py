@@ -83,9 +83,17 @@ class JouleReadinessEngineTests(unittest.TestCase):
         mock_provider_init.assert_not_called()
         mock_generate_structured_output.assert_not_called()
 
-    @patch("services.application.joule_readiness.GeminiLLMProvider.generate_structured_output")
-    @patch("services.application.joule_readiness.GeminiLLMProvider.__init__", return_value=None)
-    def test_non_gemini_provider_uses_deterministic_analysis_until_structured_adapter_exists(
+    @patch(
+        "services.application.joule_readiness.GLMLLMProvider.generate_structured_output",
+        return_value=GapAnalysisOutput(
+            identified_gaps=["GLM gap"],
+            recommended_actions=["GLM action"],
+            risk_level="Low",
+            executive_summary="GLM structured output",
+        ),
+    )
+    @patch("services.application.joule_readiness.GLMLLMProvider.__init__", return_value=None)
+    def test_glm_provider_uses_structured_adapter(
         self,
         mock_provider_init: object,
         mock_generate_structured_output: object,
@@ -97,9 +105,35 @@ class JouleReadinessEngineTests(unittest.TestCase):
             )
 
         self.assertIsInstance(result, GapAnalysisOutput)
+        self.assertEqual(result.risk_level, "Low")
+        self.assertEqual(result.identified_gaps, ["GLM gap"])
+        self.assertEqual(result.recommended_actions, ["GLM action"])
+        mock_provider_init.assert_called_once()
+        mock_generate_structured_output.assert_called_once()
+
+    @patch("services.application.joule_readiness.GeminiLLMProvider.generate_structured_output")
+    @patch("services.application.joule_readiness.GeminiLLMProvider.__init__", return_value=None)
+    @patch("services.application.joule_readiness.GLMLLMProvider.generate_structured_output")
+    @patch("services.application.joule_readiness.GLMLLMProvider.__init__", return_value=None)
+    def test_unsupported_provider_uses_deterministic_analysis_without_provider_call(
+        self,
+        mock_glm_init: object,
+        mock_glm_generate_structured_output: object,
+        mock_gemini_init: object,
+        mock_gemini_generate_structured_output: object,
+    ) -> None:
+        with patch("config.settings.settings.LLM_PROVIDER", "unsupported"), patch("config.settings.settings.LLM_DISABLE", False):
+            result = generate_joule_gap_analysis(
+                checked_items=["BTP 서브어카운트 생성 완료"],
+                unchecked_items=["IAS 신뢰 설정 미완료"],
+            )
+
+        self.assertIsInstance(result, GapAnalysisOutput)
         self.assertTrue(result.recommended_actions)
-        mock_provider_init.assert_not_called()
-        mock_generate_structured_output.assert_not_called()
+        mock_gemini_init.assert_not_called()
+        mock_gemini_generate_structured_output.assert_not_called()
+        mock_glm_init.assert_not_called()
+        mock_glm_generate_structured_output.assert_not_called()
 
     @patch("services.application.joule_readiness.GeminiLLMProvider.__init__", return_value=None)
     def test_returns_fallback_when_provider_payload_breaks_schema(

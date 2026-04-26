@@ -8,6 +8,7 @@ SAP 공식 문서를 벡터 DB에 저장하고, 사용자 입력 컨텍스트를
 from __future__ import annotations
 
 import hashlib
+import json
 import os
 import warnings
 from dataclasses import dataclass
@@ -16,6 +17,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from config.settings import settings
+from services.reference_mapper import get_rag_reference_source_ids
 
 if TYPE_CHECKING:
     from langchain_chroma import Chroma
@@ -103,7 +105,10 @@ def _load_markdown_docs() -> list["Document"]:
         docs.append(
             Document(
                 page_content=text,
-                metadata={"source": md_file.name},
+                metadata={
+                    "source": md_file.name,
+                    "reference_source_ids": get_rag_reference_source_ids([md_file.name]),
+                },
             )
         )
     return docs
@@ -113,8 +118,8 @@ def _compute_docs_hash(docs: list["Document"]) -> str:
     """문서 내용의 해시를 계산하여 변경 감지에 활용."""
     hasher = hashlib.sha256()
     for doc in docs:
-        source = str(doc.metadata.get("source", ""))
-        hasher.update(source.encode("utf-8"))
+        metadata = json.dumps(doc.metadata, ensure_ascii=False, sort_keys=True)
+        hasher.update(metadata.encode("utf-8"))
         hasher.update(b"\0")
         hasher.update(doc.page_content.encode("utf-8"))
         hasher.update(b"\0")

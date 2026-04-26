@@ -108,7 +108,7 @@ LLM 결과 품질을 안정화하기 위해 아래 보호 장치를 사용합니
 5. **타임아웃 비활성 경로 최적화**
    - `ANALYSIS_TIMEOUT_MS=0`일 때 LLM 호출을 직접 실행해 불필요한 thread 생성 오버헤드 제거
 6. **Joule readiness soft-fail**
-   - `LLM_DISABLE=true` 또는 structured output 미지원 provider 선택 시 Joule Gap Analysis도 deterministic fallback으로 생성
+   - Gemini/GLM structured output을 우선 사용하고, `LLM_DISABLE=true` 또는 미지원 provider 선택 시 Joule Gap Analysis도 deterministic fallback으로 생성
    - 미완료 항목을 시스템/BTP/Identity/권한/연결/테스트 workstream으로 분류해 리스크와 실행 조치를 유지
 
 ---
@@ -128,12 +128,14 @@ LLM 결과 품질을 안정화하기 위해 아래 보호 장치를 사용합니
 
 ### 3) Evidence Ledger
 - 권고안 claim 단위로 근거 등급(A/B/C/D) 기록
-- claim ↔ rule_ids ↔ input_facts ↔ rag_sources 연결
+- claim ↔ rule_ids ↔ input_facts ↔ rag_sources ↔ reference_source_ids 연결
+- 로컬 RAG 문서(`data/*.md`)도 `docs/sources.yaml`의 `SRC_*` 카탈로그 ID로 매핑
 
 ### 4) Source Governance
 - `docs/sources.yaml` 기반 출처 카탈로그 검증
 - 스키마/노후도(staleness) 자동 체크
 - 스냅샷 파일 경로/sha256 해시 무결성 자동 체크
+- `make refresh-sources`로 offline snapshot/catalog refresh 후 즉시 `verify-sources` 실행
 
 ### 5) Document Outputs
 - Executive Summary / Detailed Report 생성
@@ -158,6 +160,7 @@ services/
   application/joule_readiness.py   # Joule readiness policy + deterministic fallback wrapper
   application/llm_costs.py         # provider usage token/cost helpers
   application/llm_runtime.py       # optional-timeout LLM execution helper
+  application/pipeline_timing.py   # shared elapsed/timeout budget helpers
   application/report_content.py    # report payload/fallback/quality helpers
   application/report_preflight.py  # pre-confirm + PDF gate helpers
   cost_calculator.py               # KPI calculations
@@ -299,6 +302,7 @@ make test-compat
 make check-import-cycles
 make measure-import-budget
 make verify-sources
+make refresh-sources
 make verify-report-preconfirm
 make verify-prune-hygiene
 make report-compat-telemetry
@@ -315,6 +319,7 @@ make qa-report
 - `make check-import-cycles`: `services`/`app.py` 내부 import cycle 점검
 - `make measure-import-budget`: `app` / `analysis_runner` 기본 import 경로를 반복 subprocess로 측정하고 `artifacts/perf/import_budget.json`, `artifacts/perf/import_modules.json`에 timing/module snapshot을 기록하는 additive perf check
 - `make verify-sources`: 출처 카탈로그 검증
+- `make refresh-sources`: `tools/snapshot_sources.py --offline --update-catalog` 실행 후 `make verify-sources`로 snapshot/hash/freshness 확인
 - `make verify-report-preconfirm`: 인용 커버리지 + 수치/날짜 정합성 사전검증
 - `make verify-prune-hygiene`: fast-lane 삭제 대상/deprecated target(backtest/calibrate) 재유입 방지
 - `make report-compat-telemetry`: 최근 7일 safe-lane 호환 래퍼 호출량 JSON 요약
@@ -339,7 +344,7 @@ PR/릴리즈 검증 시에는 기능 게이트(`make test`, `make verify-sources
 
 출처 스냅샷 갱신:
 ```bash
-./.venv/bin/python tools/snapshot_sources.py --offline --update-catalog --json
+make refresh-sources SOURCE_SNAPSHOT_DATE=2026-04-26
 ```
 
 문서/CI 동기화 스팟체크(2026-03-18):
@@ -361,7 +366,7 @@ PR/릴리즈 검증 시에는 기능 게이트(`make test`, `make verify-sources
 - `make verify-safe-lane-promotion-strict` → telemetry log가 없거나 비어있거나 invalid row가 있으면 **의도적으로 FAIL**
 - `make verify-release-readiness` → strict safe-lane 조건 충족 시 PASS (`artifacts/qa/release_readiness.json` 생성)
 - First-use RAG warmup probe (`2026-03-17`) → `ChromaRAGProvider()` first call `8771.721ms`, second call `0.172ms`; startup warmup is kept opt-in via `RAG_WARMUP_ON_START`
-- Refactor KPI snapshot: `analysis_runner.py` 493 lines / `app.py` 85 lines
+- Refactor KPI snapshot: `analysis_runner.py` 478 lines / `app.py` 92 lines
 - Microbench(모킹 LLM, 150회): timeout=0 경로 p95 `0.139ms`, timeout=1000 경로 p95 `0.198ms`
 
 예시(결정론 샘플 케이스 기준 기대값):

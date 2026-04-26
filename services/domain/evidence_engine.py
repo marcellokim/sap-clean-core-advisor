@@ -7,7 +7,7 @@ import re
 from models.schemas import EvidenceItem
 from services.domain.recommendation_engine import RecommendationTrace
 from services.rag_pipeline import RAGContextBundle
-from services.reference_mapper import get_reference_source_ids
+from services.reference_mapper import get_rag_reference_source_ids, get_reference_source_ids
 
 
 def _extract_source_text_map(rag_context: str) -> dict[str, str]:
@@ -110,7 +110,12 @@ def build_evidence_ledger(
             fallback_sources=fallback_sources,
         )
         evidence_grade = grade_evidence(trace.input_facts, trace.rule_ids, rag_sources)
-        reference_source_ids = get_reference_source_ids(trace.rule_ids)
+        reference_source_ids = list(
+            dict.fromkeys(
+                get_reference_source_ids(trace.rule_ids)
+                + get_rag_reference_source_ids(rag_sources)
+            )
+        )
         ledger.append(
             EvidenceItem(
                 claim_id=f"CLAIM_{idx:02d}",

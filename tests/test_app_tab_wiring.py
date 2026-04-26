@@ -272,11 +272,15 @@ class AppTabWiringTests(unittest.TestCase):
         with (
             patch.object(joule, "render_joule_checklist", side_effect=lambda cb: callback_holder.setdefault("callback", cb)),
             patch.object(joule, "generate_joule_gap_analysis", return_value=result) as mock_generate,
+            patch.object(joule.st, "session_state", {"ui_lang": "KO"}, create=True),
             patch.object(joule.st, "status", return_value=status),
             patch.object(joule.st, "write"),
             patch.object(joule.st, "markdown"),
             patch.object(joule.st, "subheader"),
+            patch.object(joule.st, "caption"),
+            patch.object(joule.st, "container", return_value=_DummyColumn()),
             patch.object(joule.st, "columns", return_value=(_DummyColumn(), _DummyColumn())),
+            patch.object(joule, "render_section_heading"),
         ):
             joule.render_joule_tab()
             callback = callback_holder["callback"]

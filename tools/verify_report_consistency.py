@@ -16,8 +16,7 @@ if str(PROJECT_ROOT) not in sys.path:
 
 from models.schemas import CustomerInput, ModuleInfo
 from services.application.analysis_runner import AnalysisPolicy, run_analysis
-from services.domain.date_claim_validator import validate_date_claims
-from services.domain.report_consistency import validate_report_consistency
+from services.application.report_preflight import collect_preconfirm_issues
 
 
 def _sample_inputs() -> list[CustomerInput]:
@@ -75,15 +74,16 @@ def main() -> int:
 
     for inp in _sample_inputs():
         result = run_analysis(inp, policy=policy, lang="ko")
-        output = result.output
-        issues = validate_report_consistency(output)
-        issues.extend(
-            validate_date_claims(
-                output.executive_summary,
-                output.detailed_report,
-                analysis_date=analysis_date,
-            )
+        preconfirm_issues, _metrics = collect_preconfirm_issues(
+            result.output,
+            analysis_date,
         )
+        issues = [
+            issue
+            for issue in preconfirm_issues
+            if issue.code.startswith("REPORT_")
+            or issue.code == "UNMAPPED_DATE_CLAIM"
+        ]
         if any(issue.severity == "HIGH" for issue in issues):
             high_issue_exists = True
         findings.append(

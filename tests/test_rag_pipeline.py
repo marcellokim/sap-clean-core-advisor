@@ -25,6 +25,22 @@ class RagPipelineTests(unittest.TestCase):
 
         self.assertNotEqual(_compute_docs_hash(original), _compute_docs_hash(renamed))
 
+    def test_docs_hash_changes_when_reference_metadata_changes(self) -> None:
+        original = [
+            SimpleNamespace(
+                page_content="same clean core content",
+                metadata={"source": "clean_core_strategy.md", "reference_source_ids": ["SRC_A"]},
+            )
+        ]
+        remapped = [
+            SimpleNamespace(
+                page_content="same clean core content",
+                metadata={"source": "clean_core_strategy.md", "reference_source_ids": ["SRC_B"]},
+            )
+        ]
+
+        self.assertNotEqual(_compute_docs_hash(original), _compute_docs_hash(remapped))
+
 
 if __name__ == "__main__":
     unittest.main()

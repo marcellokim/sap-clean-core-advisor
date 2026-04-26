@@ -101,10 +101,12 @@ class DashboardRegressionTests(unittest.TestCase):
             patch.object(dashboard.st, "subheader"),
             patch.object(dashboard.st, "dataframe"),
             patch.object(dashboard.st, "caption"),
+            patch.object(dashboard.st, "container", return_value=_DummyContainer()),
             patch.object(dashboard.st, "download_button"),
             patch.object(dashboard.st, "columns", side_effect=_columns),
             patch.object(dashboard.st, "plotly_chart", side_effect=lambda fig, **kwargs: plotted.append((fig, kwargs))),
             patch.object(dashboard.st, "expander", return_value=_DummyContainer()),
+            patch.object(dashboard, "render_section_heading"),
         ):
             dashboard.render_dashboard(_sample_output(), _sample_input(), b"%PDF-test")
 

@@ -271,6 +271,7 @@ class GeminiLLMProvider(BaseLLMProvider):
             google_api_key=api_key,
             temperature=0.3,
             max_output_tokens=max_output_tokens,
+            request_timeout=max(5, settings.LLM_HTTP_TIMEOUT_SEC),
         )
 
     def _invoke_text_with_usage(self, chain: Runnable, inputs: dict[str, Any]) -> tuple[str, LLMUsage]:

@@ -5,6 +5,9 @@ from __future__ import annotations
 import unittest
 
 from services.analysis_service import _grade_evidence
+from services.domain.evidence_engine import build_evidence_ledger
+from services.domain.recommendation_engine import RecommendationTrace
+from services.rag_pipeline import RAGContextBundle
 
 
 class EvidenceLedgerTests(unittest.TestCase):
@@ -39,6 +42,26 @@ class EvidenceLedgerTests(unittest.TestCase):
             rag_sources=[],
         )
         self.assertEqual(grade, "D")
+
+    def test_rag_sources_add_source_catalog_reference_ids(self) -> None:
+        ledger = build_evidence_ledger(
+            [
+                RecommendationTrace(
+                    text="Clean Core strategy extension pattern",
+                    rule_ids=[],
+                    input_facts=[],
+                )
+            ],
+            generation_mode="llm",
+            rag_bundle=RAGContextBundle(
+                context="[출처: clean_core_strategy.md]\nClean Core strategy extension pattern",
+                sources=["clean_core_strategy.md"],
+                chunk_count=1,
+            ),
+        )
+
+        self.assertEqual(ledger[0].rag_sources, ["clean_core_strategy.md"])
+        self.assertIn("SRC_SAP_CLEAN_CORE", ledger[0].reference_source_ids)
 
 
 if __name__ == "__main__":

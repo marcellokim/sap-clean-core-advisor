@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import unittest
 
-from services.reference_mapper import get_rule_reference_map
+from services.reference_mapper import RAG_SOURCE_REFERENCE_MAP, get_rule_reference_map
 from tools.verify_sources import load_source_catalog
 
 
@@ -62,6 +62,22 @@ class RuleReferenceMapTests(unittest.TestCase):
         self.assertFalse(
             missing_source_ids,
             f"Missing source IDs in docs/sources.yaml: {sorted(missing_source_ids)}",
+        )
+
+    def test_rag_source_reference_ids_exist_in_catalog(self) -> None:
+        catalog_ids = {
+            str(item["source_id"])
+            for item in load_source_catalog()
+        }
+        missing_source_ids = {
+            source_id
+            for source_ids in RAG_SOURCE_REFERENCE_MAP.values()
+            for source_id in source_ids
+            if source_id not in catalog_ids
+        }
+        self.assertFalse(
+            missing_source_ids,
+            f"Missing RAG source IDs in docs/sources.yaml: {sorted(missing_source_ids)}",
         )
 
 

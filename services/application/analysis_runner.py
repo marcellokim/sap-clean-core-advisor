@@ -25,6 +25,11 @@ from services.application.report_content import (
     collect_report_quality_issues,
     enforce_detailed_template,
 )
+from services.application.pipeline_timing import (
+    elapsed_ms,
+    remaining_timeout_sec,
+    timeout_hit,
+)
 from services.application.report_preflight import render_pdf_output, run_preconfirm_validation
 from services.cost_calculator import run_calculation
 from services.domain.evidence_engine import build_evidence_ledger
@@ -148,26 +153,6 @@ class ChromaRAGProvider:
         )
 
 
-def _elapsed_ms(start_ts: float) -> int:
-    return max(0, int((time.perf_counter() - start_ts) * 1000))
-
-
-def _timeout_hit(start_ts: float, timeout_ms: int) -> bool:
-    if timeout_ms <= 0:
-        return False
-    return _elapsed_ms(start_ts) >= timeout_ms
-
-
-def _remaining_timeout_sec(start_ts: float, timeout_ms: int) -> float | None:
-    """Return remaining timeout budget in seconds, or None when timeout is disabled."""
-    if timeout_ms <= 0:
-        return None
-    remaining_ms = timeout_ms - _elapsed_ms(start_ts)
-    if remaining_ms <= 0:
-        return 0.0
-    return remaining_ms / 1000.0
-
-
 def _select_provider_name() -> str:
     return settings.LLM_PROVIDER.strip().lower() or "gemini"
 
@@ -236,7 +221,7 @@ def run_analysis(
     customer_info = format_customer_info(customer_input, lang=lang)
     recommendation_traces: list[RecommendationTrace] = extract_recommendations(calc, customer_input, lang=lang)
     recommendations = [trace.text for trace in recommendation_traces]
-    stage_metrics_ms["calc_ms"] = _elapsed_ms(calc_start)
+    stage_metrics_ms["calc_ms"] = elapsed_ms(calc_start)
 
     rag_bundle = _DefaultRAGContextBundle(context="", sources=[], chunk_count=0)
     rag_context = ""
@@ -248,7 +233,7 @@ def run_analysis(
         and effective_policy.rag_enabled
     )
     rag_start = time.perf_counter()
-    if should_try_rag and not _timeout_hit(total_start, effective_policy.timeout_ms):
+    if should_try_rag and not timeout_hit(total_start, effective_policy.timeout_ms):
         try:
             rag_provider = ChromaRAGProvider()
             rag_bundle = rag_provider.get_context_bundle(
@@ -264,7 +249,7 @@ def run_analysis(
             if not settings.RAG_OFFLINE_ALLOW:
                 raise
             logger.warning("RAG context unavailable, continuing without it: [%s] %s", rag_error_code, exc)
-    stage_metrics_ms["rag_ms"] = _elapsed_ms(rag_start)
+    stage_metrics_ms["rag_ms"] = elapsed_ms(rag_start)
 
     payload = build_report_payload(customer_input, calc, recommendations, rag_context)
     fallback_sections = build_fallback_reports(customer_input, calc, recommendations)
@@ -284,7 +269,7 @@ def run_analysis(
         and effective_policy.llm_enabled
     )
     llm_start = time.perf_counter()
-    if should_try_llm and not _timeout_hit(total_start, effective_policy.timeout_ms):
+    if should_try_llm and not timeout_hit(total_start, effective_policy.timeout_ms):
         provider_name = _select_provider_name()
         generation_provider = provider_name
         try:
@@ -295,7 +280,7 @@ def run_analysis(
                 candidate_sections = generate_with_optional_timeout(
                     provider,
                     payload,
-                    lambda: _remaining_timeout_sec(total_start, effective_policy.timeout_ms),
+                    lambda: remaining_timeout_sec(total_start, effective_policy.timeout_ms),
                 )
 
                 issues = collect_report_quality_issues(
@@ -322,7 +307,7 @@ def run_analysis(
                     )
                     if (
                         quality_attempt < max_quality_retry
-                        and not _timeout_hit(total_start, effective_policy.timeout_ms)
+                        and not timeout_hit(total_start, effective_policy.timeout_ms)
                     ):
                         continue
                     raise LLMProviderError(
@@ -375,7 +360,7 @@ def run_analysis(
             generation_error_code = ERR_LLM_PROVIDER
             llm_status = "fallback"
             logger.warning("Unknown LLM provider/Timeout failure. Using fallback report: %s", exc)
-    stage_metrics_ms["llm_ms"] = _elapsed_ms(llm_start)
+    stage_metrics_ms["llm_ms"] = elapsed_ms(llm_start)
 
     evidence_ledger = build_evidence_ledger(recommendation_traces, generation_mode, rag_bundle)
     validation_warnings = list(ruleset_resolution.warnings)
@@ -384,7 +369,7 @@ def run_analysis(
         validation_warnings.append(
             f"{rag_error_code}: 컨텍스트 소스를 불러오지 못해 규칙 기반 정보 중심으로 생성했습니다."
         )
-    if _timeout_hit(total_start, effective_policy.timeout_ms):
+    if timeout_hit(total_start, effective_policy.timeout_ms):
         validation_warnings.append("ANALYSIS_TIMEOUT: 타임아웃 임계치 도달로 일부 단계를 건너뛰었습니다.")
     if llm_quality_issues and llm_status != "ok":
         validation_warnings.append(
@@ -448,8 +433,8 @@ def run_analysis(
         customer_input,
         preconfirm_issues,
     )
-    stage_metrics_ms["pdf_ms"] = _elapsed_ms(pdf_start)
-    stage_metrics_ms["total_ms"] = _elapsed_ms(total_start)
+    stage_metrics_ms["pdf_ms"] = elapsed_ms(pdf_start)
+    stage_metrics_ms["total_ms"] = elapsed_ms(total_start)
     output = output.model_copy(
         update={
             "stage_metrics_ms": stage_metrics_ms,

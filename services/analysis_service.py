@@ -22,8 +22,30 @@ from services.domain.validation_engine import (
 from services.infrastructure.compat_telemetry import mark_compat_usage
 
 
+def _run_analysis_from_dict(
+    customer_input_dict: dict,
+    lang: str = "ko",
+    policy_dict: dict | None = None,
+):
+    from models.schemas import CustomerInput
+
+    inp = CustomerInput(**customer_input_dict)
+
+    if policy_dict:
+        pol = AnalysisPolicy(**policy_dict)
+    else:
+        pol = AnalysisPolicy.from_env()
+
+    return run_analysis(inp, policy=pol, lang=lang)
+
+
 @lru_cache(maxsize=1)
 def _get_cached_analysis_runner():
+    from streamlit.runtime import exists as streamlit_runtime_exists
+
+    if not streamlit_runtime_exists():
+        return _run_analysis_from_dict
+
     import streamlit as st
 
     @st.cache_data(ttl=3600, show_spinner=False)
@@ -32,16 +54,7 @@ def _get_cached_analysis_runner():
         lang: str = "ko",
         policy_dict: dict | None = None,
     ):
-        from models.schemas import CustomerInput
-
-        inp = CustomerInput(**customer_input_dict)
-
-        if policy_dict:
-            pol = AnalysisPolicy(**policy_dict)
-        else:
-            pol = AnalysisPolicy.from_env()
-
-        return run_analysis(inp, policy=pol, lang=lang)
+        return _run_analysis_from_dict(customer_input_dict, lang=lang, policy_dict=policy_dict)
 
     return _cached_analysis_runner
 

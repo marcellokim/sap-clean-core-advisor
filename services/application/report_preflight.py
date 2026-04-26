@@ -34,16 +34,11 @@ def _classify_pdf_error(exc: Exception) -> str:
     return ERR_PDF_UNKNOWN
 
 
-def run_preconfirm_validation(
+def collect_preconfirm_issues(
     output: AdvisorOutput,
     analysis_date: str,
-    validation_warnings: list[str],
-) -> tuple[AdvisorOutput, list[ValidationIssue], CitationCoverage | None]:
-    """Run pre-confirm validation suite and append warnings to output."""
-    if not settings.REPORT_PREFLIGHT_ENABLE:
-        return output, [], None
-
-    updated_warnings = list(validation_warnings)
+) -> tuple[list[ValidationIssue], CitationCoverage]:
+    """Collect the shared pre-confirm validation issues for app and CLI gates."""
     report_claims = extract_report_claims(
         output.executive_summary,
         output.detailed_report,
@@ -59,7 +54,23 @@ def run_preconfirm_validation(
         output.detailed_report,
         analysis_date=analysis_date,
     )
-    preconfirm_issues = citation_issues + consistency_issues + date_issues
+    return citation_issues + consistency_issues + date_issues, citation_metrics
+
+
+def run_preconfirm_validation(
+    output: AdvisorOutput,
+    analysis_date: str,
+    validation_warnings: list[str],
+) -> tuple[AdvisorOutput, list[ValidationIssue], CitationCoverage | None]:
+    """Run pre-confirm validation suite and append warnings to output."""
+    if not settings.REPORT_PREFLIGHT_ENABLE:
+        return output, [], None
+
+    updated_warnings = list(validation_warnings)
+    preconfirm_issues, citation_metrics = collect_preconfirm_issues(
+        output,
+        analysis_date,
+    )
 
     for issue in preconfirm_issues:
         updated_warnings.append(
@@ -69,6 +80,15 @@ def run_preconfirm_validation(
         updated_warnings.append(
             "REPORT_PRECONFIRM_CITATION_COVERAGE: "
             f"{citation_metrics.with_reference_source_ids}/{citation_metrics.total_claims}"
+        )
+    if citation_metrics and citation_metrics.report_claim_coverage_ratio < 1.0:
+        covered_report_claims = (
+            citation_metrics.total_report_claims
+            - citation_metrics.uncovered_report_claims
+        )
+        updated_warnings.append(
+            "REPORT_PRECONFIRM_REPORT_CLAIM_COVERAGE: "
+            f"{covered_report_claims}/{citation_metrics.total_report_claims}"
         )
 
     return (
@@ -114,4 +134,3 @@ def render_pdf_output(
         pdf_error_message = str(exc).strip() or None
         logger.warning("PDF generation failed: [%s] %s", pdf_error_code, exc)
         return None, pdf_error_code, pdf_error_message, "failed"
-

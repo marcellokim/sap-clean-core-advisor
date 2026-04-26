@@ -7,6 +7,7 @@ import argparse
 import json
 import sys
 from dataclasses import asdict
+from datetime import date
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
@@ -15,7 +16,7 @@ if str(PROJECT_ROOT) not in sys.path:
 
 from models.schemas import CustomerInput, ModuleInfo
 from services.application.analysis_runner import AnalysisPolicy, run_analysis
-from services.domain.citation_validator import validate_citation_coverage
+from services.application.report_preflight import collect_preconfirm_issues
 
 
 def _sample_inputs() -> list[CustomerInput]:
@@ -69,13 +70,19 @@ def main() -> int:
     policy = AnalysisPolicy(analysis_mode="deterministic", rag_enabled=False, llm_enabled=False)
     findings: list[dict[str, object]] = []
     high_issue_exists = False
+    analysis_date = date.today().isoformat()
 
     for inp in _sample_inputs():
         result = run_analysis(inp, policy=policy, lang="ko")
-        issues, metrics = validate_citation_coverage(
-            result.output.evidence_ledger,
-            strict_reference_ids=True,
+        preconfirm_issues, metrics = collect_preconfirm_issues(
+            result.output,
+            analysis_date,
         )
+        issues = [
+            issue
+            for issue in preconfirm_issues
+            if issue.code.startswith("CITATION_")
+        ]
         if any(issue.severity == "HIGH" for issue in issues):
             high_issue_exists = True
         findings.append(

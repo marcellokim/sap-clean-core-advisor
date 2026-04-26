@@ -28,6 +28,26 @@ class GeminiLLMProvider:
         return self._impl.generate_structured_output(**kwargs)
 
 
+class GLMLLMProvider:
+    """Lazy GLM provider proxy for structured Joule output."""
+
+    def __init__(self) -> None:
+        from services.infrastructure.llm.glm_provider import GLMLLMProvider as Impl
+
+        self._impl = Impl()
+
+    def generate_structured_output(self, **kwargs):
+        return self._impl.generate_structured_output(**kwargs)
+
+
+_STRUCTURED_PROVIDERS = {
+    "gemini": GeminiLLMProvider,
+    "glm": GLMLLMProvider,
+    "glm-5": GLMLLMProvider,
+    "zhipu": GLMLLMProvider,
+}
+
+
 def _selected_provider_name() -> str:
     return settings.LLM_PROVIDER.strip().lower() or "gemini"
 
@@ -53,7 +73,8 @@ def _generate_joule_gap_analysis_cached(
             reason=_deterministic_reason("LLM이 비활성화되어"),
         )
 
-    if provider_name != "gemini":
+    provider_cls = _STRUCTURED_PROVIDERS.get(provider_name)
+    if provider_cls is None:
         return build_deterministic_gap_analysis(
             checked,
             unchecked,
@@ -63,7 +84,7 @@ def _generate_joule_gap_analysis_cached(
         )
 
     prompt = build_gap_analysis_prompt(checked, unchecked)
-    provider = GeminiLLMProvider()
+    provider = provider_cls()
 
     try:
         result = provider.generate_structured_output(
