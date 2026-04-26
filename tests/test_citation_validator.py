@@ -66,13 +66,51 @@ class CitationValidatorTests(unittest.TestCase):
                 text="- 권고안 1",
             ),
         ]
+        evidence_item = EvidenceItem(
+            claim_id="CLAIM_01",
+            claim_text="Clean Core 점수 42.6/100",
+            evidence_grade="A",
+            input_facts=["Clean Core 점수 42.6/100"],
+            rule_ids=["REC_SCORE_LT_60"],
+            rag_sources=[],
+            reference_source_ids=["SRC_1"],
+            generation_mode="fallback",
+        )
         issues, metrics = validate_citation_coverage(
-            [_item("CLAIM_01", refs=["SRC_1"])],
+            [evidence_item],
             report_claims,
             strict_reference_ids=True,
         )
         self.assertEqual(metrics.total_report_claims, 2)
         self.assertEqual(metrics.uncovered_report_claims, 1)
+        self.assertTrue(any(issue.code == "CITATION_REPORT_CLAIMS_UNCOVERED" for issue in issues))
+
+    def test_report_claims_must_match_evidence_content_not_only_count(self) -> None:
+        report_claims = [
+            ReportClaim(
+                section="executive_summary",
+                line_no=1,
+                claim_type="numeric",
+                text="Clean Core score is 99/100",
+            ),
+            ReportClaim(
+                section="detailed_report",
+                line_no=2,
+                claim_type="statement",
+                text="- Contract savings are guaranteed next quarter",
+            ),
+        ]
+        issues, metrics = validate_citation_coverage(
+            [
+                _item("CLAIM_01", refs=["SRC_1"]),
+                _item("CLAIM_02", refs=["SRC_2"]),
+            ],
+            report_claims,
+            strict_reference_ids=True,
+        )
+
+        self.assertEqual(metrics.total_report_claims, 2)
+        self.assertEqual(metrics.uncovered_report_claims, 2)
         self.assertTrue(any(issue.code == "CITATION_REPORT_CLAIMS_UNCOVERED" for issue in issues))
 
 

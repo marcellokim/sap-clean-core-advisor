@@ -17,27 +17,24 @@ LOGO_PATH = Path(__file__).resolve().parent / "data" / "assets" / "sap_logo.svg"
 PAGE_ICON = str(LOGO_PATH) if LOGO_PATH.exists() else None
 
 # ────────────────────────────────────────────────────────────────────
-# 페이지 설정
-# ────────────────────────────────────────────────────────────────────
-st.set_page_config(
-    page_title="SAP Clean Core Advisor",
-    page_icon=PAGE_ICON,
-    layout="wide",
-    initial_sidebar_state="expanded",
-)
-
-# 고급 UI/UX를 위한 글로벌 CSS 주입
-apply_global_styles()
-
-# ────────────────────────────────────────────────────────────────────
-# 사이드바
-# ────────────────────────────────────────────────────────────────────
-render_sidebar(LOGO_PATH, DOCS_ROOT)
-
-
-# ────────────────────────────────────────────────────────────────────
 # 메인 영역
 # ────────────────────────────────────────────────────────────────────
+def _configure_page() -> None:
+    """Configure Streamlit page chrome at runtime, not import time."""
+    st.set_page_config(
+        page_title="SAP Clean Core Advisor",
+        page_icon=PAGE_ICON,
+        layout="wide",
+        initial_sidebar_state="expanded",
+    )
+
+    # 고급 UI/UX를 위한 글로벌 CSS 주입
+    apply_global_styles()
+
+    # 사이드바
+    render_sidebar(LOGO_PATH, DOCS_ROOT)
+
+
 def _maybe_warm_rag_vector_store() -> None:
     """Warm the vector store only when startup warmup is explicitly enabled."""
     if not settings.RAG_WARMUP_ON_START:
@@ -71,6 +68,7 @@ def _render_tabs() -> None:
 
 def main() -> None:
     """메인 앱 플로우."""
+    _configure_page()
     _maybe_warm_rag_vector_store()
 
     render_shell_header(

@@ -111,9 +111,13 @@ def _load_markdown_docs() -> list["Document"]:
 
 def _compute_docs_hash(docs: list["Document"]) -> str:
     """문서 내용의 해시를 계산하여 변경 감지에 활용."""
-    hasher = hashlib.md5()
+    hasher = hashlib.sha256()
     for doc in docs:
+        source = str(doc.metadata.get("source", ""))
+        hasher.update(source.encode("utf-8"))
+        hasher.update(b"\0")
         hasher.update(doc.page_content.encode("utf-8"))
+        hasher.update(b"\0")
     return hasher.hexdigest()
 
 

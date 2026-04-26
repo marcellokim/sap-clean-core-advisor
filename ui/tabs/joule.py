@@ -6,7 +6,7 @@ from html import escape
 
 import streamlit as st
 
-from services.domain.joule_readiness_engine import generate_joule_gap_analysis
+from services.application.joule_readiness import generate_joule_gap_analysis
 from ui.joule_checklist import render_joule_checklist
 from ui.locales import _
 from ui.styles import render_section_heading, status_badge_markup

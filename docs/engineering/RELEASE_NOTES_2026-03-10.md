@@ -3,7 +3,7 @@
 ## 1) Scope
 
 - 기간: 2026-03-10
-- 기준 계획: `.omx/plans/repo-refactor-optimization-prune-v3-2026-03-10.md`
+- 기준 계획: 2026-03-10 구조 리팩토링/품질 게이트 강화 작업 범위
 - 릴리즈 성격: 구조 리팩토링 + 품질/호환성 게이트 강화 + safe-lane 운영 자동화
 
 ## 2) Delivered

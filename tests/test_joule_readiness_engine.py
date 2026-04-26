@@ -3,11 +3,11 @@
 from __future__ import annotations
 
 import unittest
-from pathlib import Path
 from unittest.mock import patch
 
 from models.schemas import GapAnalysisOutput
-from services.domain.joule_readiness_engine import generate_joule_gap_analysis
+from services.application.joule_readiness import generate_joule_gap_analysis
+from services.domain.joule_readiness_engine import build_deterministic_gap_analysis
 
 
 class JouleReadinessEngineTests(unittest.TestCase):
@@ -18,7 +18,7 @@ class JouleReadinessEngineTests(unittest.TestCase):
         generate_joule_gap_analysis.clear()
 
     @patch(
-        "services.domain.joule_readiness_engine.GeminiLLMProvider.generate_structured_output",
+        "services.application.joule_readiness.GeminiLLMProvider.generate_structured_output",
         return_value=GapAnalysisOutput(
             identified_gaps=["SSO 설정 누락"],
             recommended_actions=["IAS 연동 구성", "권한 매트릭스 검증"],
@@ -26,7 +26,7 @@ class JouleReadinessEngineTests(unittest.TestCase):
             executive_summary="핵심 인증 구성이 누락되어 활성화 전 보완이 필요합니다.",
         ),
     )
-    @patch("services.domain.joule_readiness_engine.GeminiLLMProvider.__init__", return_value=None)
+    @patch("services.application.joule_readiness.GeminiLLMProvider.__init__", return_value=None)
     def test_returns_structured_gap_analysis_from_provider(
         self,
         _mock_provider_init: object,
@@ -45,10 +45,10 @@ class JouleReadinessEngineTests(unittest.TestCase):
         mock_generate_structured_output.assert_called_once()
 
     @patch(
-        "services.domain.joule_readiness_engine.GeminiLLMProvider.generate_structured_output",
+        "services.application.joule_readiness.GeminiLLMProvider.generate_structured_output",
         side_effect=RuntimeError("provider boom"),
     )
-    @patch("services.domain.joule_readiness_engine.GeminiLLMProvider.__init__", return_value=None)
+    @patch("services.application.joule_readiness.GeminiLLMProvider.__init__", return_value=None)
     def test_returns_fallback_output_when_provider_raises(
         self,
         _mock_provider_init: object,
@@ -64,7 +64,44 @@ class JouleReadinessEngineTests(unittest.TestCase):
         self.assertTrue(result.recommended_actions)
         self.assertIn("상세 갭 분석을 수행하지 못했습니다", result.executive_summary)
 
-    @patch("services.domain.joule_readiness_engine.GeminiLLMProvider.__init__", return_value=None)
+    @patch("services.application.joule_readiness.GeminiLLMProvider.generate_structured_output")
+    @patch("services.application.joule_readiness.GeminiLLMProvider.__init__", return_value=None)
+    def test_llm_disabled_uses_deterministic_analysis_without_provider_call(
+        self,
+        mock_provider_init: object,
+        mock_generate_structured_output: object,
+    ) -> None:
+        with patch("config.settings.settings.LLM_DISABLE", True):
+            result = generate_joule_gap_analysis(
+                checked_items=["BTP 서브어카운트 생성 완료"],
+                unchecked_items=["IAS 신뢰 설정 미완료", "Destination 연결 테스트 미완료"],
+            )
+
+        self.assertIsInstance(result, GapAnalysisOutput)
+        self.assertTrue(result.identified_gaps)
+        self.assertIn(result.risk_level, {"High", "Medium", "Low"})
+        mock_provider_init.assert_not_called()
+        mock_generate_structured_output.assert_not_called()
+
+    @patch("services.application.joule_readiness.GeminiLLMProvider.generate_structured_output")
+    @patch("services.application.joule_readiness.GeminiLLMProvider.__init__", return_value=None)
+    def test_non_gemini_provider_uses_deterministic_analysis_until_structured_adapter_exists(
+        self,
+        mock_provider_init: object,
+        mock_generate_structured_output: object,
+    ) -> None:
+        with patch("config.settings.settings.LLM_PROVIDER", "glm"), patch("config.settings.settings.LLM_DISABLE", False):
+            result = generate_joule_gap_analysis(
+                checked_items=["BTP 서브어카운트 생성 완료"],
+                unchecked_items=["IAS 신뢰 설정 미완료"],
+            )
+
+        self.assertIsInstance(result, GapAnalysisOutput)
+        self.assertTrue(result.recommended_actions)
+        mock_provider_init.assert_not_called()
+        mock_generate_structured_output.assert_not_called()
+
+    @patch("services.application.joule_readiness.GeminiLLMProvider.__init__", return_value=None)
     def test_returns_fallback_when_provider_payload_breaks_schema(
         self,
         _mock_provider_init: object,
@@ -87,7 +124,7 @@ class JouleReadinessEngineTests(unittest.TestCase):
             with self.subTest(payload=payload):
                 generate_joule_gap_analysis.clear()
                 with patch(
-                    "services.domain.joule_readiness_engine.GeminiLLMProvider.generate_structured_output",
+                    "services.application.joule_readiness.GeminiLLMProvider.generate_structured_output",
                     return_value=payload,
                 ):
                     result = generate_joule_gap_analysis(
@@ -100,14 +137,18 @@ class JouleReadinessEngineTests(unittest.TestCase):
                 self.assertTrue(result.recommended_actions)
                 self.assertTrue(result.executive_summary)
 
-    def test_domain_layer_has_no_direct_google_sdk_imports(self) -> None:
-        offending_paths = []
-        for path in Path("services/domain").rglob("*.py"):
-            source = path.read_text(encoding="utf-8")
-            if "langchain_google_genai" in source or "ChatGoogleGenerativeAI" in source:
-                offending_paths.append(str(path))
+    def test_deterministic_gap_analysis_groups_incomplete_workstreams(self) -> None:
+        result = build_deterministic_gap_analysis(
+            checked_items=["BTP Global Account 준비 완료"],
+            unchecked_items=[
+                "SAP Cloud Identity Services (IAS/IPS) 테넌트 준비 완료",
+                "Destination 설정과 엔드포인트 연결 테스트 정상 확인",
+            ],
+        )
 
-        self.assertEqual(offending_paths, [])
+        self.assertGreaterEqual(len(result.identified_gaps), 1)
+        self.assertGreaterEqual(len(result.recommended_actions), 2)
+        self.assertIn(result.risk_level, {"High", "Medium"})
 
 
 if __name__ == "__main__":

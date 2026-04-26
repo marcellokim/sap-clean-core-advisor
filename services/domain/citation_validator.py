@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 
 from models.schemas import EvidenceItem
@@ -86,7 +87,8 @@ def validate_citation_coverage(
         )
 
     report_claim_count = len(report_claims or [])
-    uncovered_report_claims = max(0, report_claim_count - total_claims)
+    uncovered_claims = _find_uncovered_report_claims(report_claims or [], evidence_ledger)
+    uncovered_report_claims = len(uncovered_claims)
     if uncovered_report_claims > 0:
         issues.append(
             ValidationIssue(
@@ -94,7 +96,8 @@ def validate_citation_coverage(
                 code="CITATION_REPORT_CLAIMS_UNCOVERED",
                 message=(
                     "보고서 claim 대비 evidence coverage 부족 "
-                    f"(report_claims={report_claim_count}, evidence_claims={total_claims})"
+                    f"(report_claims={report_claim_count}, uncovered={uncovered_report_claims}, "
+                    f"examples={'; '.join(claim.text[:80] for claim in uncovered_claims[:3])})"
                 ),
             )
         )
@@ -107,3 +110,68 @@ def validate_citation_coverage(
         uncovered_report_claims=uncovered_report_claims,
     )
     return issues, metrics
+
+
+def _tokenize(text: str) -> set[str]:
+    stopwords = {
+        "the",
+        "and",
+        "are",
+        "for",
+        "with",
+        "및",
+        "현재",
+        "전환",
+        "보고서",
+        "상세",
+        "요약",
+        "필요",
+        "합니다",
+        "입니다",
+    }
+    tokens = {
+        token
+        for token in re.findall(r"[0-9A-Za-z가-힣]{2,}", text.casefold())
+        if token not in stopwords
+    }
+    return tokens
+
+
+def _evidence_tokens(item: EvidenceItem) -> set[str]:
+    payload = " ".join(
+        [
+            item.claim_text,
+            " ".join(item.input_facts),
+            " ".join(item.rule_ids),
+            " ".join(item.reference_source_ids),
+        ]
+    )
+    return _tokenize(payload)
+
+
+def _claim_is_covered(report_claim: ReportClaim, evidence_token_sets: list[set[str]]) -> bool:
+    claim_tokens = _tokenize(report_claim.text)
+    if not claim_tokens:
+        return True
+
+    min_overlap = 2 if len(claim_tokens) >= 3 else 1
+    for evidence_tokens in evidence_token_sets:
+        if len(claim_tokens & evidence_tokens) >= min_overlap:
+            return True
+    return False
+
+
+def _find_uncovered_report_claims(
+    report_claims: list[ReportClaim],
+    evidence_ledger: list[EvidenceItem],
+) -> list[ReportClaim]:
+    if not report_claims:
+        return []
+    evidence_token_sets = [_evidence_tokens(item) for item in evidence_ledger]
+    if not evidence_token_sets:
+        return report_claims
+    return [
+        claim
+        for claim in report_claims
+        if not _claim_is_covered(claim, evidence_token_sets)
+    ]

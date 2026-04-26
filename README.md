@@ -107,6 +107,9 @@ LLM 결과 품질을 안정화하기 위해 아래 보호 장치를 사용합니
    - provider usage 기반 토큰/비용 집계(`llm_usage_source=provider`)
 5. **타임아웃 비활성 경로 최적화**
    - `ANALYSIS_TIMEOUT_MS=0`일 때 LLM 호출을 직접 실행해 불필요한 thread 생성 오버헤드 제거
+6. **Joule readiness soft-fail**
+   - `LLM_DISABLE=true` 또는 structured output 미지원 provider 선택 시 Joule Gap Analysis도 deterministic fallback으로 생성
+   - 미완료 항목을 시스템/BTP/Identity/권한/연결/테스트 workstream으로 분류해 리스크와 실행 조치를 유지
 
 ---
 
@@ -152,6 +155,7 @@ config/                            # settings, rulesets
 models/                            # pydantic schemas
 services/
   application/analysis_runner.py   # orchestration policy (slim)
+  application/joule_readiness.py   # Joule readiness policy + deterministic fallback wrapper
   application/llm_costs.py         # provider usage token/cost helpers
   application/llm_runtime.py       # optional-timeout LLM execution helper
   application/report_content.py    # report payload/fallback/quality helpers

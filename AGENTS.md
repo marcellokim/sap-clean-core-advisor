@@ -1,0 +1,35 @@
+These instructions apply to the entire repository.
+- `sap-clean-core-advisor` is a Python 3.13+ Streamlit app.
+- The app calculates SAP Clean Core score, TCO, risk, recommendations, evidence ledger output, and PDF reports.
+- Dependency and task management primarily use `uv`.
+- Keep changes small, focused, and reversible.
+- Reuse existing patterns and utilities before adding new abstractions.
+- Do not add new dependencies unless explicitly requested.
+- Preserve deterministic-first behavior and soft-fail fallbacks.
+- Prefer fixing root causes over layering temporary patches.
+- `app.py` — Streamlit entrypoint
+- `services/` — analysis, report, and infrastructure logic
+- `ui/` — Streamlit presentation layer
+- `models/` — Pydantic schemas
+- `tests/` — unit and regression tests
+- `docs/` — templates and reference material
+- `tools/`, `scripts/` — validation and maintenance utilities
+- Setup: run `uv sync`, then `cp .env.example .env`.
+- Run app: `make run` or `uv run streamlit run app.py`
+- Run tests: `make test`
+- Run a focused test: `./.venv/bin/python -m unittest tests.test_<module> -v`
+- For UI changes, keep KO/EN behavior and existing redesign helpers aligned.
+- For scoring, TCO, or risk logic, update or add regression coverage.
+- For report or evidence changes, preserve fallback behavior and traceability metadata.
+- For source governance changes, keep verification scripts and snapshot integrity in sync.
+Before finalizing code changes, run the smallest relevant verification first, then broader checks as needed:
+- `./.venv/bin/python -m unittest tests.test_<module> -v`
+- `make test`
+- `make verify-sources`
+- `make verify-report-preconfirm`
+- `make verify-prune-hygiene`
+- `make check-import-cycles`
+- `make qa-report`
+- Note: this repository does not currently define dedicated lint or typecheck targets; use the Makefile verification/static-analysis commands above.
+- Ignore generated/local state under `.omx/`.
+- Keep `.gitignore` updated if new generated outputs are introduced.

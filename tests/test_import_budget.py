@@ -36,6 +36,18 @@ class ImportBudgetTests(unittest.TestCase):
         snapshot = _snapshot_for("import app")
         self.assertEqual(snapshot["heavy_count"], 0, snapshot["heavy_modules"])
 
+    def test_app_import_has_no_streamlit_runtime_side_effect_warnings(self) -> None:
+        result = subprocess.run(
+            [sys.executable, "-c", "import app"],
+            cwd=PROJECT_ROOT,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+
+        self.assertNotIn("missing ScriptRunContext", result.stderr)
+        self.assertNotIn("Session state does not function", result.stderr)
+
     def test_analysis_runner_import_avoids_heavy_rag_and_llm_modules(self) -> None:
         snapshot = _snapshot_for("from services.application.analysis_runner import run_analysis")
         self.assertEqual(snapshot["heavy_count"], 0, snapshot["heavy_modules"])

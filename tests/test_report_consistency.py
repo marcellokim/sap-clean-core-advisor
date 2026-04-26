@@ -58,6 +58,25 @@ class ReportConsistencyTests(unittest.TestCase):
         issues = validate_report_consistency(output)
         self.assertTrue(any(issue.code == "REPORT_METRIC_MISMATCH_CLEAN_CORE_SCORE" for issue in issues))
 
+    def test_high_issue_when_later_metric_contradicts_first_match(self) -> None:
+        output = _sample_output(
+            executive_summary=(
+                "Clean Core 점수 42.6/100\n"
+                "현재 연간 TCO 1.06억원\n"
+                "전환 후 연간 TCO 0.95억원\n"
+                "3년 누적 절감액 0.33억원\n"
+            ),
+            detailed_report=(
+                "## 1. 현황 분석\n"
+                "- Clean Core Score 10.0/100\n"
+                "- 현재 연간 TCO 99.0억원\n"
+            ),
+        )
+        issues = validate_report_consistency(output)
+        issue_codes = {issue.code for issue in issues}
+        self.assertIn("REPORT_METRIC_MISMATCH_CLEAN_CORE_SCORE", issue_codes)
+        self.assertIn("REPORT_METRIC_MISMATCH_CURRENT_ANNUAL_TCO", issue_codes)
+
 
 if __name__ == "__main__":
     unittest.main()

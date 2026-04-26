@@ -43,16 +43,15 @@ def _to_float(raw: str) -> float | None:
         return None
 
 
-def _extract_numeric(patterns: list[re.Pattern[str]], text: str) -> float | None:
+def _extract_numerics(patterns: list[re.Pattern[str]], text: str) -> list[float]:
+    values: list[float] = []
     for pattern in patterns:
-        match = pattern.search(text)
-        if not match:
-            continue
-        candidate = match.group(1)
-        parsed = _to_float(candidate)
-        if parsed is not None:
-            return parsed
-    return None
+        for match in pattern.finditer(text):
+            candidate = match.group(1)
+            parsed = _to_float(candidate)
+            if parsed is not None:
+                values.append(parsed)
+    return values
 
 
 def _validate_metric(
@@ -64,8 +63,8 @@ def _validate_metric(
     patterns: list[re.Pattern[str]],
     tolerance: float,
 ) -> None:
-    found = _extract_numeric(patterns, text)
-    if found is None:
+    found_values = _extract_numerics(patterns, text)
+    if not found_values:
         issues.append(
             ValidationIssue(
                 severity="LOW",
@@ -75,13 +74,16 @@ def _validate_metric(
         )
         return
 
-    if abs(found - expected) > tolerance:
+    mismatches = [found for found in found_values if abs(found - expected) > tolerance]
+    if mismatches:
+        examples = ", ".join(f"{value:.2f}" for value in mismatches[:5])
         issues.append(
             ValidationIssue(
                 severity="HIGH",
                 code=f"REPORT_METRIC_MISMATCH_{field_name.upper()}",
                 message=(
-                    f"{field_name} 수치 불일치 (report={found:.2f}, expected={expected:.2f}, tolerance={tolerance})"
+                    f"{field_name} 수치 불일치 "
+                    f"(report_values=[{examples}], expected={expected:.2f}, tolerance={tolerance})"
                 ),
             )
         )
