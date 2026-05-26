@@ -7,6 +7,26 @@ SAP legacy landscape를 입력하면 **Clean Core Score / TCO / Risk**를 계산
 
 ---
 
+## Fastest Review Path
+
+```bash
+git clone https://github.com/marcellokim/sap-clean-core-advisor.git
+cd sap-clean-core-advisor
+uv sync
+make verify
+```
+
+`make verify` runs the same local gate as CI: tests, source-catalog checks, report pre-confirm checks, import-cycle checks, and safe-lane compatibility checks.
+
+To launch the app without API keys:
+
+```bash
+cp .env.example .env
+make run-demo
+```
+
+`make run-demo` starts Streamlit with `LLM_DISABLE=true`, `RAG_ENABLE=false`, and deterministic timing. This is the safest reviewer path when Gemini/GLM credentials are not available.
+
 ## 1) Project Overview
 
 이 프로젝트는 SAP 전환 초기 단계에서 자주 발생하는 3가지 문제를 해결하는 데 집중합니다.

@@ -5,10 +5,15 @@ IMPORT_BUDGET_REPEATS ?= 5
 IMPORT_BUDGET_TARGETS ?= app analysis_runner
 SOURCE_SNAPSHOT_DATE ?= $(shell date +%F)
 
-.PHONY: run ci test test-compat check-import-cycles measure-import-budget verify-sources refresh-sources verify-citations verify-report-consistency verify-report-preconfirm verify-prune-hygiene report-compat-telemetry verify-safe-lane-promotion verify-safe-lane-promotion-nonstrict verify-safe-lane-promotion-strict verify-safe-lane-promotion-core verify-release-readiness qa-report
+.PHONY: run run-demo verify ci test test-compat check-import-cycles measure-import-budget verify-sources refresh-sources verify-citations verify-report-consistency verify-report-preconfirm verify-prune-hygiene report-compat-telemetry verify-safe-lane-promotion verify-safe-lane-promotion-nonstrict verify-safe-lane-promotion-strict verify-safe-lane-promotion-core verify-release-readiness qa-report
 
 run:
 	uv run streamlit run app.py
+
+run-demo:
+	LLM_DISABLE=true RAG_ENABLE=false ANALYSIS_TIMEOUT_MS=0 uv run streamlit run app.py --server.headless true --server.port $${STREAMLIT_PORT:-8501}
+
+verify: ci
 
 ci:
 	$(MAKE) qa-report
